@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "ktalk": {
+      "command": "python",
+      "args": [
+        ".mcp/ktalk-readonly/server.py",
+        "--config",
+        ".claude/local/ktalk-session.json"
+      ]
+    },
+    "rag_gateway": {
+      "command": "node",
+      "args": [
+        ".mcp/rag-gateway/server.js"
+      ],
+      "env": {
+        "RAG_GATEWAY_TOKEN": "REPLACE_ME",
+        "N8N_API_KEY": "REPLACE_ME"
+      }
+    }
+  }
+}

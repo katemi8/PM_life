@@ -1,114 +1,98 @@
-# Notion MCP — подключение для PM-Live
+# Notion MCP
 
-Этот документ описывает, как подключить официальный Notion MCP к Cursor,
-чтобы агент в `pm_life` мог читать (и при approval — писать) продуктовые
-материалы в Notion.
+Этот документ фиксирует рабочий read-flow для Notion.
 
-Официальный сервер: `https://mcp.notion.com/mcp`  
-Документация Notion: [Connecting to Notion MCP](https://developers.notion.com/guides/mcp/get-started-with-mcp)
+Основной читатель: агент. PM может открыть документ, чтобы понять, какие Notion tools должны быть доступны.
 
-## Что получите после подключения
+Для подключения Notion MCP в **Cursor / PM-Live** см. также [`notion-mcp-cursor.md`](notion-mcp-cursor.md).
 
-Агент сможет вызывать Notion tools, например:
+## Status
 
-- `notion-fetch` / `notion_fetch` — страница, база, схема;
-- `notion-search` / `notion_search` — поиск по workspace;
-- `notion-query-database-view` / `notion_query_database_view` — строки view.
+Current v0 uses the official hosted Notion MCP as the only supported Notion read path.
 
-Доступ идёт через **ваш** Notion-аккаунт (OAuth). Shared service account в v0 не используем.
-
-## Быстрый старт в Cursor (рекомендуется)
-
-### Вариант A — project config (для команды)
-
-В корне `pm_life` уже есть шаблон `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "notion": {
-      "url": "https://mcp.notion.com/mcp"
-    }
-  }
-}
-```
-
-1. Откройте репозиторий `pm_life` в Cursor Desktop.
-2. Cursor Settings → **MCP** — убедитесь, что сервер `notion` виден.
-3. Если статус **Needs login** / не авторизован — нажмите Connect / Login.
-4. В браузере завершите OAuth своим Notion-аккаунтом и разрешите доступ к нужному workspace.
-5. **Перезапустите Cursor** или начните новый Agent chat.
-6. Проверьте: попросите агента «прочитай страницу Notion по ссылке …» или «найди в Notion …».
-
-### Вариант B — global config
-
-1. Cursor Settings → **MCP** → **Add new global MCP server**.
-2. Вставьте:
-
-```json
-{
-  "mcpServers": {
-    "notion": {
-      "url": "https://mcp.notion.com/mcp"
-    }
-  }
-}
-```
-
-3. Save → restart Cursor → OAuth при первом использовании Notion tool.
-
-Global config удобен для личной машины; для командного onboarding предпочтительнее project `.cursor/mcp.json`.
-
-## Проверка, что всё работает
-
-В новом Agent chat:
-
-```text
-Проверь, доступен ли Notion MCP. Если да — найди в Notion одну страницу
-по слову «метрики» и кратко опиши, что нашёл.
-```
-
-Ожидаемое поведение:
-
-- агент видит Notion MCP tools;
-- поиск/fetch проходит без ошибки auth;
-- если страницы нет в доступе — агент явно пишет, что нет permission, а не выдумывает контент.
-
-## Правила для PM-Live
-
-- Notion — source of truth для продуктовой документации.
-- Агент **не пишет** в официальные Notion-документы без явного approval на конкретное изменение (preview/diff → approve → write → readback).
-- Не вставляйте Notion integration tokens / cookies в чат.
-- Cloud Agent (фон в cursor.com) часто **не** имеет вашего Notion OAuth: полноценный Notion MCP — в Cursor Desktop / локальной сессии.
-
-## Troubleshooting
-
-| Симптом | Что сделать |
-|---|---|
-| Сервер есть в Settings, но Agent пишет «MCP server does not exist: notion» | Settings → MCP: выключите и снова включите `notion`, откройте список MCP, затем новый chat |
-| Needs login / unauthorized | Повторите OAuth; при необходимости Disconnect / Clear authentication и залогиньтесь снова |
-| Tools не появились после добавления config | Restart Cursor; убедитесь, что открыт именно project с `.cursor/mcp.json` |
-| Страница/база не читается | Проверьте, что ваш Notion-аккаунт имеет доступ к странице; дайте агенту прямую ссылку |
-| Cloud Agent не видит Notion | Это ожидаемо без интерактивного OAuth — подключайте MCP в Desktop |
-
-## Codex (если работаете и там)
+For Codex, the expected config is:
 
 ```powershell
 codex mcp add notion --url https://mcp.notion.com/mcp
+```
+
+This writes the server config to the user's Codex MCP configuration.
+
+Equivalent config shape:
+
+```toml
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"
+```
+
+Then authenticate:
+
+```powershell
 codex mcp login notion
+```
+
+Expected check:
+
+```powershell
 codex mcp list
 codex mcp get notion
 ```
 
-Ожидание: server `notion` enabled, streamable HTTP, OAuth.
+The `notion` server should be `enabled`, use `streamable_http`, and show OAuth auth.
 
-## Связь с TA-agent-system
+Each PM authenticates with their own Notion account. Current v0 does not use a shared Notion service account.
 
-Командный слой skills/contracts живёт в `TrendPM/AI-Skills`.  
-PM-Live (`pm_life`) — рабочий workspace PM. Notion MCP подключается одинаково: официальный hosted endpoint + личный OAuth.
+## Supported Tools
 
-После подключения Notion можно запускать типовые сценарии:
+In a fresh Codex session, the official Notion MCP appears as `mcp__notion__`.
 
-- собрать продуктовый контекст по фиче;
-- подготовить разметку метрик по живой схеме в Notion;
-- проверить конфликты перед изменением требований.
+Use these tools for Notion reads:
+
+- `mcp__notion__.notion_fetch` to read pages, databases, data sources and schemas;
+- `mcp__notion__.notion_query_database_view` to read rows from an existing Notion database view;
+- `mcp__notion__.notion_search` to search workspace content or a specific data source.
+
+Before relying on a page, database or view, verify that the official Notion MCP can actually read it. If access is missing, report the missing page/database/view instead of continuing as if coverage is complete.
+
+Equivalent official MCP tool names are:
+
+- `notion-fetch`;
+- `notion-query-database-view`;
+- `notion-search`.
+
+## Database View Read Flow
+
+When the PM provides a Notion database view link:
+
+1. Fetch the database or view URL with `notion_fetch`.
+2. Read the database schema, data source URL and view configuration.
+3. Query the exact view with `notion_query_database_view`.
+4. Fetch individual pages only when row details or page content are needed.
+5. Summarize fields and links; do not copy unrelated private database content.
+
+This is the primary flow for `Метрики ver_10` and other structured Notion databases.
+
+## Metrics Read Flow
+
+For analytics markup:
+
+1. Fetch `Метрики ver_10` or the provided view URL.
+2. Query the relevant view with `notion_query_database_view`.
+3. Reuse existing `event_page`, `event_category`, `Группы параметров`, `Параметры TrendAgent`, `Custom group` and `Счетчик` values when they match.
+4. Propose new schema objects only when existing records do not cover the feature.
+5. Show batch preview before any write.
+
+## Fallback
+
+If `notion_query_database_view` is unavailable:
+
+1. Use `notion_search` scoped to the data source.
+2. Fetch matching pages one by one with `notion_fetch`.
+3. Clearly state that the result may not cover the whole view.
+4. Stop if full view coverage is required for the task.
+
+Do not silently pretend that search results are a complete database export.
+
+## Session Note
+
+After adding the official Notion MCP, already-open Codex chats may still have stale tool discovery. A new Codex session may be required before `mcp__notion__` appears.

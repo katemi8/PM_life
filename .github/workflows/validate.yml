@@ -1,0 +1,46 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Validate skills
+        run: python scripts/validate-skills.py
+
+      - name: Smoke-test skills
+        run: python scripts/smoke-skills.py
+
+      - name: Validate manifest
+        run: python scripts/validate-manifest.py
+
+      - name: Scan secrets
+        run: python scripts/scan-secrets.py
+
+      - name: Validate JSON
+        run: |
+          python -m json.tool .mcp.example.json > /dev/null
+          python -m json.tool .mcp/ktalk-readonly/ktalk-session.example.json > /dev/null
+          python -m json.tool manifest.json > /dev/null
+          python -m json.tool manifest.example.json > /dev/null
+
+      - name: Check whitespace
+        run: |
+          EMPTY_TREE=$(git hash-object -t tree /dev/null)
+          git diff --check "$EMPTY_TREE" HEAD

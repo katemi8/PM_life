@@ -1,0 +1,9 @@
+.env
+.env.*
+.mcp.json
+.claude/local/
+dist/
+*.zip
+*.skill
+__pycache__/
+*.pyc
