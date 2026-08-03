@@ -1,11 +1,12 @@
 # Notion MCP — подключение для PM-Live
 
 Этот документ описывает, как подключить официальный Notion MCP к Cursor,
-чтобы агент в `pm_life` мог читать (и при approval — писать) продуктовые
+чтобы агент в `PM_life` (PM-Live) мог читать (и при approval — писать) продуктовые
 материалы в Notion.
 
 Официальный сервер: `https://mcp.notion.com/mcp`  
-Документация Notion: [Connecting to Notion MCP](https://developers.notion.com/guides/mcp/get-started-with-mcp)
+Документация Notion: [Connecting to Notion MCP](https://developers.notion.com/guides/mcp/get-started-with-mcp)  
+Agent read-flow (общий): [`notion-mcp.md`](notion-mcp.md)
 
 ## Что получите после подключения
 
