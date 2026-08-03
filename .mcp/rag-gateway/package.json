@@ -1,0 +1,19 @@
+{
+  "name": "rag-gateway-mcp",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Project-local MCP server exposing the TrendTech research RAG bot + real-estate warehouse as agent tools",
+  "type": "module",
+  "bin": {
+    "rag-gateway-mcp": "server.js"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  }
+}

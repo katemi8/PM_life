@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+!.mcp/rag-gateway/.env.example
+.mcp.json
+.claude/local/
+dist/
+*.zip
+*.skill
+__pycache__/
+*.pyc

@@ -1,0 +1,6 @@
+{
+  "base_url": "https://your-domain.ktalk.ru",
+  "allowed_hosts": ["your-domain.ktalk.ru"],
+  "session_token": "REPLACE_ME",
+  "timeout_seconds": 30
+}

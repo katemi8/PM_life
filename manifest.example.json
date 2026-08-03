@@ -1,0 +1,106 @@
+{
+  "name": "TA-agent-system",
+  "version": "0.1.0",
+  "targetRepository": {
+    "provider": "github",
+    "fullName": "TrendPM/AI-Skills",
+    "url": "https://github.com/TrendPM/AI-Skills"
+  },
+  "source": {
+    "type": "github-release",
+    "branch": "main",
+    "tag": "v0.1.0",
+    "publicationStatus": "released"
+  },
+  "governance": {
+    "initialPublication": {
+      "branch": "main",
+      "requiresPullRequest": false
+    },
+    "changesAfterInitialPublication": {
+      "requiresPullRequest": true,
+      "reviewModel": "owner-review",
+      "branchNaming": [
+        "skill/<skill-name>",
+        "contract/<topic>",
+        "docs/<topic>",
+        "fix/<topic>"
+      ]
+    },
+    "ownership": {
+      "model": "artifact-owner",
+      "initialOwner": "iakovlevi",
+      "agentCanChangeOwner": false
+    }
+  },
+  "release": {
+    "versionTagRequired": true,
+    "manifestMustIncludeReleaseTag": true,
+    "releaseNotesMustIncludeCommitSha": true,
+    "manifestMustIncludeCommitSha": false
+  },
+  "capabilities": {
+    "active": [
+      "team-skills",
+      "agent-rules",
+      "notion-read",
+      "official-notion-mcp-read",
+      "notion-write-with-approval-and-readback",
+      "ktalk-meeting-processing",
+      "project-local-mcp-servers",
+      "repo-local-ktalk-mcp",
+      "guided-first-run-install",
+      "local-validation",
+      "github-pr-review-gates-after-initial-publication",
+      "versioned-releases",
+      "release-provenance"
+    ]
+  },
+  "mcpServers": [
+    {
+      "name": "ktalk",
+      "path": ".mcp/ktalk-readonly",
+      "entrypoint": ".mcp/ktalk-readonly/server.py",
+      "configTemplate": ".mcp/ktalk-readonly/ktalk-session.example.json",
+      "localConfigIgnored": ".claude/local/ktalk-session.json",
+      "owner": "iakovlevi"
+    }
+  ],
+  "skills": [
+    {
+      "name": "agent-system-install",
+      "path": "skills/agent-system-install",
+      "version": "0.1.0",
+      "owner": "iakovlevi"
+    },
+    {
+      "name": "metrics-markup",
+      "path": "skills/metrics-markup",
+      "version": "0.1.0",
+      "owner": "iakovlevi"
+    },
+    {
+      "name": "product-context-search",
+      "path": "skills/product-context-search",
+      "version": "0.1.0",
+      "owner": "iakovlevi"
+    },
+    {
+      "name": "meeting-context-review",
+      "path": "skills/meeting-context-review",
+      "version": "0.1.0",
+      "owner": "iakovlevi"
+    }
+  ],
+  "checks": [
+    "python scripts\\validate-skills.py",
+    "python scripts\\smoke-skills.py",
+    "python scripts\\validate-manifest.py",
+    "python scripts\\scan-secrets.py",
+    "python -m json.tool .mcp.example.json",
+    "python -m json.tool .mcp\\ktalk-readonly\\ktalk-session.example.json",
+    "python -m json.tool manifest.json",
+    "python -m json.tool manifest.example.json",
+    "git diff --check"
+  ]
+}
