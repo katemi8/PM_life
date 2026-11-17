@@ -172,6 +172,7 @@ def add_candidate(
     score: int,
     source: str,
     reason: str,
+    role: str = "",
 ) -> None:
     if deny(username):
         return
@@ -182,6 +183,7 @@ def add_candidate(
         "score": score,
         "source": source,
         "reason": reason,
+        "role": role,
     }
     if prev is None or meta["score"] > prev["score"]:
         pool[u] = meta
@@ -209,6 +211,7 @@ def discover(
                 score=100,
                 source=src,
                 reason=f"seed ({note})",
+                role=str(lead.get("label") or ""),
             )
 
     if extra_url:

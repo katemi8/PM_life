@@ -10,6 +10,7 @@ DISCOVER="$ROOT/scripts/discover.py"
 COMPANY=""
 EXTRA_URL=""
 REFRESH=0
+JSON_OUT=0
 
 usage() {
   cat >&2 <<'EOF'
@@ -17,8 +18,10 @@ Usage:
   recruiter-osint.sh "Название компании"
   recruiter-osint.sh "Название" --url 'https://…'
   recruiter-osint.sh "Название" --refresh
+  recruiter-osint.sh "Название" --json   # полный JSON
 
-Stdout: JSON. Кэш: data/recruiter-cache.json
+По умолчанию: 3 строки — @ник, имя, должность, ссылка t.me
+Кэш: data/recruiter-cache.json
 EOF
 }
 
@@ -27,6 +30,10 @@ while [[ $# -gt 0 ]]; do
     --url)
       EXTRA_URL="${2:-}"
       shift 2
+      ;;
+    --json)
+      JSON_OUT=1
+      shift
       ;;
     --refresh)
       REFRESH=1
@@ -60,18 +67,35 @@ mkdir -p "$ROOT/data"
 cache_key="$(python3 -c "import re,sys; k=re.sub(r'[^a-z0-9]+','-',sys.argv[1].casefold().strip()); print(k.strip('-') or 'unknown')" "$COMPANY")"
 
 if [[ "$REFRESH" -eq 0 ]]; then
-  if python3 - "$CACHE" "$cache_key" <<'PY'
+  if python3 - "$CACHE" "$cache_key" "$JSON_OUT" <<'PY'
 import json, sys
 from pathlib import Path
+
+def emit_short(hit):
+    b = hit.get("best_contact") or (hit.get("contacts") or [None])[0]
+    if not b:
+        return False
+    name = (b.get("title") or "").strip() or "—"
+    role = (b.get("role") or "").strip() or "—"
+    u = b["username"]
+    print(f"@{u}")
+    print(f"{name}, {role}")
+    print(f"https://t.me/{u}")
+    return True
+
 cache = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 hit = cache.get(sys.argv[2])
+json_out = sys.argv[3] == "1"
 if hit and hit.get("contacts"):
-    print(json.dumps(hit, ensure_ascii=False, indent=2))
+    if json_out:
+        print(json.dumps(hit, ensure_ascii=False, indent=2))
+    else:
+        emit_short(hit)
     sys.exit(0)
 sys.exit(1)
 PY
   then
-    echo "(from cache, use --refresh)" >&2
+    echo "(из кэша; --refresh чтобы обновить)" >&2
     exit 0
   fi
 fi
@@ -128,6 +152,7 @@ for v in alive:
     v["source_url"] = m.get("source")
     v["match_reason"] = m.get("reason")
     v["score"] = m.get("score", 0)
+    v["role"] = m.get("role") or ""
 alive.sort(key=lambda x: (-(x.get("score") or 0), x.get("username", "").casefold()))
 top = alive[0].get("score") or 0 if alive else 0
 # не сыпем лишние TG: при уверенном seed (90+) — только один ник
@@ -148,12 +173,27 @@ print(json.dumps(out, ensure_ascii=False))
 PY
 
 if [[ "$(python3 -c "import json;print(len(json.load(open('$tmpdir/result.json')).get('contacts',[])))")" -eq 0 ]]; then
-  echo "Кандидаты были, но t.me не подтвердил — проверьте отклонённые ники в rejected_usernames" >&2
-  python3 -m json.tool <"$tmpdir/result.json"
+  echo "Живой Telegram не найден (добавьте seed или --url)" >&2
+  [[ "$JSON_OUT" -eq 1 ]] && python3 -m json.tool <"$tmpdir/result.json"
   exit 1
 fi
 
-python3 -m json.tool <"$tmpdir/result.json"
+if [[ "$JSON_OUT" -eq 1 ]]; then
+  python3 -m json.tool <"$tmpdir/result.json"
+else
+  python3 - "$tmpdir/result.json" <<'PY'
+import json, sys
+from pathlib import Path
+hit = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+b = hit.get("best_contact")
+name = (b.get("title") or "").strip() or "—"
+role = (b.get("role") or "").strip() or "—"
+u = b["username"]
+print(f"@{u}")
+print(f"{name}, {role}")
+print(f"https://t.me/{u}")
+PY
+fi
 
 python3 - "$CACHE" "$cache_key" "$tmpdir/result.json" <<'PY'
 import json, sys
