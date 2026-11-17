@@ -52,6 +52,28 @@ HR_HINTS = (
 )
 
 USER_RE = r"[A-Za-z][A-Za-z0-9_]{4,31}"
+# Ложные срабатывания из CSS/JSON-LD (@media, @context, …)
+FALSE_AT = frozenset(
+    {
+        "media",
+        "context",
+        "keyframes",
+        "graph",
+        "import",
+        "charset",
+        "supports",
+        "layer",
+        "container",
+        "scope",
+        "page",
+        "namespace",
+        "counter",
+        "property",
+        "font",
+        "document",
+        "viewport",
+    }
+)
 
 
 def company_key(name: str) -> str:
@@ -129,8 +151,37 @@ def extract_usernames(text: str) -> list[str]:
     return found
 
 
+def extract_usernames_near(text: str, company: str, window: int = 400) -> list[str]:
+    """@ и t.me только рядом с названием компании (не CSS со всей страницы)."""
+    t = text
+    low = text.casefold()
+    c = company.casefold()
+    found: list[str] = []
+    for m in re.finditer(rf"(?<![A-Za-z0-9_])@({USER_RE})", t):
+        user = m.group(1)
+        if user.casefold() in FALSE_AT:
+            continue
+        start = max(0, m.start() - window)
+        end = min(len(t), m.end() + window)
+        chunk = low[start:end]
+        if c in chunk or any(p in chunk for p in c.split() if len(p) > 2):
+            found.append(user)
+    for m in re.finditer(rf"https?://t\.me/({USER_RE})", t, re.I):
+        user = m.group(1)
+        if user.casefold() in FALSE_AT:
+            continue
+        start = max(0, m.start() - window)
+        end = min(len(t), m.end() + window)
+        chunk = low[start:end]
+        if c in chunk or any(p in chunk for p in c.split() if len(p) > 2):
+            found.append(user)
+    return found
+
+
 def deny(username: str) -> bool:
     low = username.casefold()
+    if low in FALSE_AT:
+        return True
     return any(d in low for d in DENY_SUB)
 
 
@@ -235,8 +286,8 @@ def discover(
     ]
     for q in queries:
         _, ddg_html = ddg_search(q)
-        for user in extract_usernames(ddg_html):
-            if not company_context(ddg_html, company) or not hr_context(ddg_html):
+        for user in extract_usernames_near(ddg_html, company, window=500):
+            if not hr_context(ddg_html):
                 continue
             add_candidate(
                 pool,
@@ -247,16 +298,33 @@ def discover(
             )
 
     slug = company_key(company)
-    hirehi = curl_get(f"https://hirehi.ru/companies/{slug}")
-    if hirehi and company_context(hirehi, company):
-        for user in extract_usernames(hirehi):
-            sc = 70 if hr_context(hirehi) else 60
+    for hire_slug in dict.fromkeys((slug, company.casefold().strip())):
+        if not hire_slug or not re.fullmatch(r"[a-z0-9-]+", hire_slug):
+            continue
+        hirehi = curl_get(f"https://hirehi.ru/companies/{hire_slug}")
+        if not hirehi or not company_context(hirehi, company):
+            continue
+        for user in extract_usernames_near(hirehi, company):
+            if not hr_context(hirehi):
+                continue
             add_candidate(
                 pool,
                 user,
-                score=sc,
-                source=f"https://hirehi.ru/companies/{slug}",
+                score=75,
+                source=f"https://hirehi.ru/companies/{hire_slug}",
                 reason="hirehi company page",
+            )
+    q_html = curl_get(f"https://hirehi.ru/?q={urllib.parse.quote(company)}")
+    if q_html:
+        for user in extract_usernames_near(q_html, company):
+            if not hr_context(q_html):
+                continue
+            add_candidate(
+                pool,
+                user,
+                score=70,
+                source=f"https://hirehi.ru/?q={company}",
+                reason="hirehi search",
             )
 
     ordered = sorted(pool.values(), key=lambda x: (-x["score"], x["username"].casefold()))

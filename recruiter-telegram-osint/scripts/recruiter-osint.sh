@@ -131,8 +131,8 @@ PY
 }
 
 if [[ ${#candidates[@]} -eq 0 ]]; then
-  echo "Нет кандидатов. Можно дописать data/company-seeds.json или --url 'file://…'" >&2
-  empty_result
+  echo "Контакт не найден. Откройте вакансию на HireHi или добавьте seed / --url" >&2
+  [[ "$JSON_OUT" -eq 1 ]] && empty_result
   exit 1
 fi
 
@@ -154,12 +154,17 @@ for v in alive:
     v["score"] = m.get("score", 0)
     v["role"] = m.get("role") or ""
 alive.sort(key=lambda x: (-(x.get("score") or 0), x.get("username", "").casefold()))
+# Автопоиск: не показывать мусор (CSS @media и т.п.) — нужен seed/--url или score ≥ 75
+alive = [
+    v for v in alive
+    if (v.get("score") or 0) >= 90 or ((v.get("score") or 0) >= 75 and (v.get("role") or "").strip())
+    or (v.get("score") or 0) >= 75 and (v.get("title") or "").strip() not in ("", "MEDIA")
+]
 top = alive[0].get("score") or 0 if alive else 0
-# не сыпем лишние TG: при уверенном seed (90+) — только один ник
 if top >= 90:
     alive = alive[:1]
-else:
-    alive = [v for v in alive if (v.get("score") or 0) >= top - 10][:2]
+elif alive:
+    alive = [v for v in alive if (v.get("score") or 0) >= top - 5][:1]
 out = {
   "company": company,
   "queried_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
