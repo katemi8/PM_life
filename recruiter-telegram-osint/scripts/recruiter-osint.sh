@@ -312,6 +312,7 @@ def is_vacancy_channel(v):
     if un in {
         "otzuvw4w",
         "jobs_for_products",
+        "forproducts",
         "vacancy_hrhub",
         "work4writers",
         "writeforwork",
