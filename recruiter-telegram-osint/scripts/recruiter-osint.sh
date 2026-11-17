@@ -175,7 +175,10 @@ for u in found:
 print("\n".join(out))
 PY
 
-mapfile -t candidates <"$tmpdir/candidates.txt" || true
+candidates=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -n "$line" ]] && candidates+=("$line")
+done <"$tmpdir/candidates.txt"
 
 empty_result() {
   python3 - "$COMPANY" "$emp_id" <<'PY'
