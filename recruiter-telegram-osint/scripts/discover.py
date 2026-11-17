@@ -420,11 +420,28 @@ def discover(
 
     scan_hr_vacancy_channels(pool, company)
 
-    # Только узкие запросы (без обхода случайных сайтов и hh/hirify)
+    for q in (
+        f"{company} recruiter telegram",
+        f"{company} HR telegram @",
+        f"{company} рекрутер телеграм",
+        f"{company} recruiting t.me",
+    ):
+        _, html = ddg_search(q)
+        for user in extract_usernames_near(html, company, window=700):
+            add_candidate(
+                pool,
+                user,
+                score=82,
+                source=f"ddg:{q}",
+                reason="сценарий: DDG recruiter",
+                role="",
+            )
+
+    # Узкий веб-поиск (без обхода 10+ сайтов)
     queries = [
-        f'site:hirehi.ru "{company}" telegram',
-        f'site:linkedin.com "{company}" ("Tg" OR telegram OR @)',
-        f'site:t.me "{company}" (вакансия OR HR OR рекрут)',
+        f"site:hirehi.ru {company} telegram",
+        f"site:linkedin.com {company} telegram",
+        f"site:t.me {company} вакансия HR",
     ]
     for q in queries:
         _, ddg_html = ddg_search(q)
