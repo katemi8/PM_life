@@ -36,6 +36,12 @@ SKIP_FETCH_HOST = (
     "youtube.com",
     "tiktok.com",
 )
+HR_VACANCY_CHANNELS = (
+    "hrhubvacancy",
+    "hrhubvacancy300",
+    "hrhubjunior",
+)
+
 HR_HINTS = (
     "рекрут",
     "recruit",
@@ -72,6 +78,12 @@ FALSE_AT = frozenset(
         "font",
         "document",
         "viewport",
+        "hrhub",
+        "hrhubvacancy",
+        "hrhubvacancy300",
+        "hrhubjunior",
+        "hrhublibrary",
+        "hrhubresume",
     }
 )
 
@@ -250,6 +262,78 @@ def hr_context(text: str) -> bool:
     return any(h in t for h in HR_HINTS)
 
 
+def chunk_near_username(text: str, username: str, window: int = 500) -> str:
+    t = text
+    low = text.casefold()
+    u = username.casefold()
+    for m in re.finditer(rf"@({USER_RE})", t, re.I):
+        if m.group(1).casefold() != u:
+            continue
+        start = max(0, m.start() - window)
+        end = min(len(t), m.end() + window)
+        return low[start:end]
+    for m in re.finditer(rf"t\.me/{re.escape(username)}", t, re.I):
+        start = max(0, m.start() - window)
+        end = min(len(t), m.end() + window)
+        return low[start:end]
+    return ""
+
+
+def hr_channel_resume_score(chunk: str) -> int:
+    if not chunk:
+        return 93
+    if any(x in chunk for x in ("резюме", "резюм", "в лс", " в лс", "напишите", "пишите")):
+        return 98
+    return 93
+
+
+def scan_hr_vacancy_channels(pool: dict[str, dict], company: str) -> None:
+    """Посты HR-каналов (как KION в @hrhubvacancy): DDG → t.me/s/… → @ рядом с компанией."""
+    for channel in HR_VACANCY_CHANNELS:
+        base = f"https://t.me/s/{channel}"
+        queries = [
+            f"{company} {channel} telegram",
+            f"{company} {channel} рекрутер",
+            f"{company} {channel} резюме",
+        ]
+        fetch_urls = [base]
+        for q in queries:
+            urls, ddg_html = ddg_search(q)
+            for user in extract_usernames_near(ddg_html, company, window=600):
+                if hr_context(ddg_html):
+                    add_candidate(
+                        pool,
+                        user,
+                        score=94,
+                        source=f"ddg:{q}",
+                        reason="hrhub ddg snippet",
+                        role="рекрутер (HR-канал)",
+                    )
+            for url in urls:
+                if "t.me/s/" in url:
+                    if channel in url or channel in url.casefold():
+                        fetch_urls.append(url.split("&")[0])
+        for url in dict.fromkeys(fetch_urls):
+            html = curl_get(url)
+            if not html or not company_context(html, company):
+                continue
+            for user in extract_usernames_near(html, company, window=700):
+                if deny(user):
+                    continue
+                chunk = chunk_near_username(html, user)
+                if not chunk or not hr_context(chunk):
+                    continue
+                sc = hr_channel_resume_score(chunk)
+                add_candidate(
+                    pool,
+                    user,
+                    score=sc,
+                    source=url,
+                    reason=f"HR-канал @{channel}",
+                    role="рекрутер (HR-канал)",
+                )
+
+
 def add_candidate(
     pool: dict[str, dict],
     username: str,
@@ -330,6 +414,8 @@ def discover(
             for user in extract_usernames(html):
                 sc = 90 if company_context(html, company) else 70
                 add_candidate(pool, user, score=sc, source=extra_url, reason="--url page")
+
+    scan_hr_vacancy_channels(pool, company)
 
     # Только узкие запросы (без обхода случайных сайтов и hh/hirify)
     queries = [

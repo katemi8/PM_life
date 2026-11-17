@@ -27,10 +27,12 @@ bash scripts/recruiter-osint.sh "Название компании"
 
 ## Что делает CLI (коротко)
 
-1. **`company-seeds.json`** (рекрутеры) + **`network-contacts.json`** (Нетворк + ProductCamp, 898 чел.)  
-2. DDG: **hirehi.ru**, **linkedin.com**, **t.me** (только сниппеты)  
-3. Одна страница **HireHi** `/companies/{slug}`  
-4. `verify-telegram.sh`
+1. **`company-seeds.json`** (проверенные рекрутеры)  
+2. **`network-contacts.json`** (Нетворк + ProductCamp)  
+3. **HR-каналы в Telegram** (`hrhubvacancy` и др.): поиск постов с «резюме в ЛС @…» — сценарий как для **KION**  
+4. DDG: **hirehi**, **linkedin**, **t.me**  
+5. Страница **HireHi** `/companies/{slug}`  
+6. `verify-telegram.sh`
 
 Обновить таблицы из xlsx:
 

@@ -1,6 +1,9 @@
 {
   "tutoronline": {
-    "aliases": ["tutor online", "туторонлайн"],
+    "aliases": [
+      "tutor online",
+      "туторонлайн"
+    ],
     "leads": [
       {
         "username": "Marmorli",
@@ -16,8 +19,8 @@
       {
         "username": "yuliabolmatova",
         "label": "TeamLead IT-recruitment KION",
-        "source_url": "https://t.me/s/hrhubvacancy",
-        "source_note": "HR[хаб]: резюме в ЛС @yuliabolmatova; LinkedIn teamlead IT-recruitment KION"
+        "source_url": "https://t.me/s/hrhubvacancy?before=2676",
+        "source_note": "HR[хаб]: резюме в ЛС @yuliabolmatova"
       }
     ]
   }
