@@ -12,27 +12,5 @@
         "source_note": "Пост LinkedIn: «Tg : @Marmorli» (Mari Ermakova)"
       }
     ]
-  },
-  "kion": {
-    "aliases": ["КИОН", "МТС KION", "МТС Медиа", "kion.ru"],
-    "leads": [
-      {
-        "username": "yuliabolmatova",
-        "label": "TeamLead IT-recruitment KION",
-        "source_url": "https://t.me/s/hrhubvacancy?before=2676",
-        "source_note": "HR[хаб]: резюме в ЛС @yuliabolmatova"
-      }
-    ]
-  },
-  "flowwow": {
-    "aliases": ["Флаувау", "Fluvow", "flow wow"],
-    "leads": [
-      {
-        "username": "anastasia_flowwow",
-        "label": "Recruiter Flowwow",
-        "source_url": "https://t.me/anastasia_flowwow",
-        "source_note": "Профиль t.me; вакансии также @HR_Flowwow (Dina Novikova)"
-      }
-    ]
   }
 }

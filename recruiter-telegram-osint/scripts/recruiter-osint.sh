@@ -147,6 +147,30 @@ disc = json.loads(Path(disc_path).read_text(encoding="utf-8"))
 meta = {c["username"].casefold(): c for c in disc.get("candidates") or []}
 verified = json.loads(Path(vpath).read_text(encoding="utf-8"))
 alive = [v for v in verified if v.get("alive")]
+RECR_MARK = ("recruiter", "рекрут", " hr", "hr ", "talent", "кадр", "подбор", "hiring")
+CORP_MARK = ("идеи, тренды", "календарь", "корпоративн", "marketplace", "подписчик")
+
+def rank_contact(v, company_cf):
+    s = int(v.get("score") or 0)
+    if s >= 100:
+        return s
+    text = f"{v.get('title', '')} {v.get('description', '')}".casefold()
+    un = v["username"].casefold()
+    company_hit = company_cf in text or company_cf in un or any(
+        p in text for p in company_cf.split() if len(p) > 3
+    )
+    if company_hit and any(m in text for m in RECR_MARK):
+        s += 25
+    if company_hit:
+        s += 8
+    if any(m in text for m in CORP_MARK) and not any(m in text for m in RECR_MARK):
+        s -= 45
+    if un.endswith(("_corp", "_work", "_tg")) or "corp" in un.split("_")[-1]:
+        s -= 35
+    v["score"] = s
+    return s
+
+company_cf = company.casefold()
 for v in alive:
     m = meta.get(v["username"].casefold(), {})
     v["source_url"] = m.get("source")
@@ -154,18 +178,14 @@ for v in alive:
     v["score"] = m.get("score", 0)
     v["role"] = m.get("role") or ""
     v["display_name"] = m.get("display_name") or ""
+    rank_contact(v, company_cf)
+    if not (v.get("role") or "").strip():
+        td = f"{v.get('title','')} {v.get('description','')}".strip()
+        if "recruiter" in td.casefold() or "рекрут" in td.casefold():
+            v["role"] = td[:80]
+alive = [v for v in alive if v.get("score", 0) >= 70]
 alive.sort(key=lambda x: (-(x.get("score") or 0), x.get("username", "").casefold()))
-# Автопоиск: не показывать мусор (CSS @media и т.п.) — нужен seed/--url или score ≥ 75
-alive = [
-    v for v in alive
-    if (v.get("score") or 0) >= 90 or ((v.get("score") or 0) >= 75 and (v.get("role") or "").strip())
-    or (v.get("score") or 0) >= 75 and (v.get("title") or "").strip() not in ("", "MEDIA")
-]
-top = alive[0].get("score") or 0 if alive else 0
-if top >= 90:
-    alive = alive[:1]
-elif alive:
-    alive = [v for v in alive if (v.get("score") or 0) >= top - 5][:1]
+alive = alive[:1]
 out = {
   "company": company,
   "queried_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
@@ -179,7 +199,7 @@ print(json.dumps(out, ensure_ascii=False))
 PY
 
 if [[ "$(python3 -c "import json;print(len(json.load(open('$tmpdir/result.json')).get('contacts',[])))")" -eq 0 ]]; then
-  echo "Живой Telegram не найден (добавьте seed или --url)" >&2
+  echo "Контакт не найден. В чате: «найди рекрутера <компания>» — агент добьёт сценарий; у вас: --url file://…" >&2
   [[ "$JSON_OUT" -eq 1 ]] && python3 -m json.tool <"$tmpdir/result.json"
   exit 1
 fi
