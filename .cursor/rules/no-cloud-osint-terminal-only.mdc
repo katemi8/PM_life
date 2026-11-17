@@ -1,0 +1,24 @@
+---
+description: >
+  recruiter-telegram-osint: OSINT только в терминале пользователя;
+  Cloud Agent не запускает recruiter-osint/discover/verify/--refresh.
+alwaysApply: true
+---
+
+# Terminal-only OSINT (обязательно)
+
+См. тот же смысл, что в персистентных правилах агента: **не жечь токены** полным discover/verify из чата.
+
+## Запрещено в Cloud Agent
+
+- `scripts/recruiter-osint.sh` на реальных компаниях
+- `scripts/discover.py`, `verify-telegram.sh`, `--refresh`, длинные сетевые циклы
+- «Sanity test» / «проверю на TutorOnline» в VM — даже с `head`
+
+## Разрешено
+
+Код, доки, git; `bash -n`; выдать пользователю **одну** команду для локального терминала.
+
+## Исключение
+
+Явная просьба пользователя запустить конкретную команду в агенте.
