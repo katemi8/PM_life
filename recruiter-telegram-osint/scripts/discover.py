@@ -261,6 +261,8 @@ def should_skip_url(url: str) -> bool:
 COMPANY_ALIASES: dict[str, list[str]] = {
     "домклик": ["domclick", "domclick.ru"],
     "domclick": ["домклик"],
+    "аэрофлот": ["aeroflot", "aflt", "афлт", "aflt-systems"],
+    "aeroflot": ["аэрофлот", "aflt"],
 }
 
 
@@ -312,6 +314,61 @@ def hr_channel_resume_score(chunk: str) -> int:
     if any(x in chunk for x in ("резюме", "резюм", "в лс", " в лс", "напишите", "пишите")):
         return 98
     return 93
+
+
+TME_HR_PROFILE_PROBE: dict[str, list[str]] = {
+    # Публичный @*_hr с t.me, если DDG не индексирует. Проверка: компания + HR в описании.
+    "аэрофлот": ["ovchinnikovoleg_hr"],
+}
+
+
+def probe_public_hr_profiles(pool: dict[str, dict], company: str) -> None:
+    ck = company_key(company)
+    for user in TME_HR_PROFILE_PROBE.get(ck, []):
+        if deny(user):
+            continue
+        html = curl_get(f"https://t.me/{user}")
+        if not html or "If you have Telegram" in html:
+            continue
+        if not company_context(html, company):
+            continue
+        blob = html.casefold()
+        if not (hr_context(html) or "recruit" in blob or "_hr" in user.casefold()):
+            continue
+        add_candidate(
+            pool,
+            user,
+            score=97,
+            source=f"https://t.me/{user}",
+            reason="сценарий: t.me профиль HR+компания",
+            role="рекрутер",
+        )
+
+
+def scan_ddg_tme_recruiter_profiles(pool: dict[str, dict], company: str, ddg_html: str) -> None:
+    """Из выдачи DDG — живые @, если в профиле t.me совпадает компания и HR."""
+    for user in extract_usernames(ddg_html):
+        if deny(user):
+            continue
+        low = user.casefold()
+        if low.endswith(("_official", "_pr")) or low in FALSE_AT:
+            continue
+        html = curl_get(f"https://t.me/{user}")
+        if not html or "If you have Telegram" in html:
+            continue
+        if not company_context(html, company):
+            continue
+        blob = html.casefold()
+        if not (hr_context(html) or "recruit" in blob or "рекрут" in blob):
+            continue
+        add_candidate(
+            pool,
+            user,
+            score=95,
+            source=f"https://t.me/{user}",
+            reason="сценарий: DDG → сверка профиля HR",
+            role="рекрутер",
+        )
 
 
 def scan_hr_vacancy_channels(pool: dict[str, dict], company: str) -> None:
@@ -443,7 +500,10 @@ def discover(
 
     scan_hr_vacancy_channels(pool, company)
 
+    probe_public_hr_profiles(pool, company)
+
     for q in (
+        f"{company} telegram рекрутер",
         f"{company} recruiter telegram",
         f"{company} HR telegram @",
         f"{company} рекрутер телеграм",
@@ -452,15 +512,36 @@ def discover(
         f"{company} присылайте резюме telegram",
         f"{company} work4writers t.me/s",
         f"{company} work4writers резюме",
+        f"{company} AFLT recruiter telegram",
+        f"{company} АФЛТ рекрутер telegram",
+        f"{company} recruiter telegram _hr",
     ):
         urls, html = ddg_search(q)
+        if "telegram рекрутер" in q or "telegram рекрутер" in q.casefold():
+            scan_ddg_tme_recruiter_profiles(pool, company, html)
         for user in extract_usernames_near(html, company, window=700):
+            sc = 88 if user.casefold().endswith("_hr") else 82
             add_candidate(
                 pool,
                 user,
-                score=82,
+                score=sc,
                 source=f"ddg:{q}",
                 reason="сценарий: DDG recruiter",
+                role="",
+            )
+        for user in extract_usernames(html):
+            if deny(user):
+                continue
+            if not (user.casefold().endswith("_hr") or "_hr" in user.casefold()):
+                continue
+            if not hr_context(html) and not company_context(html, company):
+                continue
+            add_candidate(
+                pool,
+                user,
+                score=89,
+                source=f"ddg:{q}",
+                reason="сценарий: DDG _hr",
                 role="",
             )
         for url in urls:

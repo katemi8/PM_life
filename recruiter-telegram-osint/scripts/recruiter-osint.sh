@@ -211,10 +211,15 @@ def rank_contact(v, company_cf):
     text = f"{v.get('title', '')} {v.get('description', '')}".casefold()
     un = v["username"].casefold()
     reason = (v.get("match_reason") or "").casefold()
+    extra_cf = ()
+    if "аэрофлот" in company_cf or company_cf == "aeroflot":
+        extra_cf = ("aeroflot", "aflt", "аэрофлот")
+    elif "домклик" in company_cf or company_cf == "domclick":
+        extra_cf = ("domclick", "домклик")
     company_hit = (
         company_cf in text
         or company_cf in un
-        or "domclick" in text
+        or any(e in text or e in un for e in extra_cf)
         or any(p in text for p in company_cf.split() if len(p) > 3)
     )
     if "hr-канал" in reason and company_hit:
@@ -238,8 +243,17 @@ def rank_contact(v, company_cf):
         s -= 55
     if un.startswith("dev") and company_hit:
         s -= 30
-    if un.endswith(("_corp", "_work", "_tg", "client")) or "client" in un or "support" in un or "corp" in un.split("_")[-1]:
+    if un.endswith(("_corp", "_work", "_tg", "client", "_official", "_pr")) or un.endswith(
+        "_admin"
+    ):
         s -= 40
+    if un.endswith(("_official", "_pr", "_admin")):
+        s -= 55
+    if company_hit and un.startswith(company_cf.replace(" ", "")[:8]) and not any(
+        m in text for m in RECR_MARK
+    ):
+        if not (title and " " in title):
+            s -= 50
     v["score"] = s
     return s
 
@@ -279,6 +293,20 @@ def is_company_insider(v):
         return False
     return any(x in role for x in ("продакт", "product", "менеджер", "cje", "сje", "owner", "lead"))
 
+def is_brand_channel(v, company_cf):
+    un = v["username"].casefold()
+    if un.endswith(("_official", "_pr", "_admin")):
+        return True
+    text = (v.get("description") or "").casefold()
+    if "официальн" in text and "канал" in text:
+        return True
+    if "неофициальн" in text and "канал" in text:
+        return True
+    slug = re.sub(r"[^a-z0-9]+", "", company_cf)
+    if slug and len(slug) > 4 and un.startswith(slug) and not (v.get("title") or "").strip():
+        return True
+    return False
+
 def is_vacancy_channel(v):
     un = v["username"].casefold()
     if un in {
@@ -306,6 +334,7 @@ def platform_account(v):
 
 alive = [v for v in alive if v.get("score", 0) >= 70]
 alive = [v for v in alive if not platform_account(v)]
+alive = [v for v in alive if not is_brand_channel(v, company_cf)]
 alive = [v for v in alive if not profile_employer_conflicts(v, company_cf)]
 alive = [v for v in alive if v["username"].casefold() not in skip_cf]
 alive.sort(
