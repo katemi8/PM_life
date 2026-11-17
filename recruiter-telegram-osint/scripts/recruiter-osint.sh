@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Поиск живого Telegram рекрутера по компании — одна команда, без LLM.
-# Источники: company-seeds.json → веб-поиск (DDG) → опционально hh (RECRUITER_USE_HH=1).
+# Поиск живого Telegram рекрутера по компании (после ручного выбора вакансии). Без LLM.
+# Источники: seeds → --url → DDG (hirehi/linkedin/t.me) → hirehi company page.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,7 +18,6 @@ Usage:
   recruiter-osint.sh "Название" --url 'https://…'
   recruiter-osint.sh "Название" --refresh
 
-По умолчанию hh.ru не дергаем (там редко есть TG). Включить: export RECRUITER_USE_HH=1
 Stdout: JSON. Кэш: data/recruiter-cache.json
 EOF
 }
@@ -82,94 +81,17 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 python3 "$DISCOVER" "$ROOT" "$COMPANY" "$EXTRA_URL" >"$tmpdir/discover.json"
 
-python3 - "$tmpdir/discover.json" >"$tmpdir/candidates.txt" <<'PY'
+candidates=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -n "$line" ]] && candidates+=("$line")
+done < <(python3 - "$tmpdir/discover.json" <<'PY'
 import json, sys
 from pathlib import Path
 data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 for c in data.get("candidates") or []:
     print(c["username"])
 PY
-
-# Опционально hh.ru (по умолчанию выключено)
-HH_UA="${HH_USER_AGENT:-recruiter-osint/2.0 (osint@local)}"
-if [[ "${RECRUITER_USE_HH:-0}" == "1" ]]; then
-  FETCH_N=0
-  fetch() {
-    local url="$1"
-    FETCH_N=$((FETCH_N + 1))
-    curl -sfL --max-time 20 -A "${HH_UA}" "$url" \
-      -o "$tmpdir/fetch_${FETCH_N}.html" 2>/dev/null || true
-  }
-  quoted="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$COMPANY")"
-  emp_json="$(curl -sfL --max-time 20 -H "User-Agent: ${HH_UA}" \
-    "https://api.hh.ru/employers?text=${quoted}&per_page=5" 2>/dev/null || echo '{"items":[]}')"
-  echo "$emp_json" >"$tmpdir/employers.json"
-  emp_id=""
-  if python3 -c "import json;print(len(json.load(open('$tmpdir/employers.json')).get('items',[])))" | grep -qv '^0$'; then
-    emp_id="$(python3 - "$tmpdir/employers.json" "$COMPANY" <<'PY'
-import json, sys
-from pathlib import Path
-data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-company = sys.argv[2].casefold()
-best, best_score = None, -1
-for it in data.get("items") or []:
-    name = (it.get("name") or "").casefold()
-    score = 100 if name == company else (50 if company in name or name in company else 0)
-    if score > best_score:
-        best_score, best = score, it
-if best and best_score >= 50:
-    print(best.get("id"))
-PY
-)"
-  fi
-  if [[ -n "$emp_id" ]]; then
-    fetch "https://hh.ru/employer/${emp_id}"
-    fetch "https://hh.ru/search/vacancy?employer_id=${emp_id}&per_page=20"
-    python3 - "$tmpdir" >>"$tmpdir/candidates.txt" <<'PY'
-import re, sys
-from pathlib import Path
-deny = ("bot", "courses", "curator", "channel", "subscribe")
-for path in Path(sys.argv[1]).glob("*.html"):
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    found = set()
-    for m in re.finditer(r"https?://t\.me/([A-Za-z][A-Za-z0-9_]{4,31})", text, re.I):
-        found.add(m.group(1))
-    for m in re.finditer(r"(?<![A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_]{4,31})", text):
-        found.add(m.group(1))
-    for u in found:
-        low = u.casefold()
-        if any(d in low for d in deny):
-            continue
-        print(u)
-PY
-  fi
-fi
-
-python3 - "$tmpdir/discover.json" "$tmpdir/candidates.txt" >"$tmpdir/ordered.txt" <<'PY'
-import json, sys
-from pathlib import Path
-disc = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-raw = Path(sys.argv[2]).read_text(encoding="utf-8").splitlines()
-prio = {c["username"].casefold(): i for i, c in enumerate(disc.get("candidates") or [])}
-spell = {c["username"].casefold(): c["username"] for c in disc.get("candidates") or []}
-n = len(prio)
-for line in raw:
-    u = line.strip()
-    if not u:
-        continue
-    k = u.casefold()
-    if k not in prio:
-        prio[k] = n
-        spell[k] = u
-        n += 1
-for k in sorted(prio.keys(), key=lambda x: prio[x]):
-    print(spell[k])
-PY
-
-candidates=()
-while IFS= read -r line || [[ -n "$line" ]]; do
-  [[ -n "$line" ]] && candidates+=("$line")
-done <"$tmpdir/ordered.txt"
+)
 
 empty_result() {
   python3 - "$COMPANY" <<'PY'

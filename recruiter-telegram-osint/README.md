@@ -1,33 +1,49 @@
 # Recruiter Telegram OSINT
 
-Одна команда → **живой** Telegram рекрутера (без LLM, без Cursor-чата).
+Поиск **живого** @ рекрутера по **названию компании** из вашей вакансии. Без LLM, без чата.
+
+## Процесс (под одну вакансию)
+
+1. Нашли вакансию (HireHi, Telegram, LinkedIn, что угодно).
+2. Скопировали **название компании** как в вакансии.
+3. В терминале:
 
 ```bash
 cd recruiter-telegram-osint
-chmod +x scripts/*.sh
-bash scripts/recruiter-osint.sh "TutorOnline"
+bash scripts/recruiter-osint.sh "Название компании"
 ```
 
-Порядок поиска:
+4. Смотрите **`best_contact`** → пишете в Telegram с резюме и сопроводительным.
 
-1. **`data/company-seeds.json`** — проверенные `@ники` + ссылка-источник (для TutorOnline уже есть).
-2. **DuckDuckGo HTML** — запросы вида «Компания рекрутер telegram» (фильтр ботов/каналов).
-3. **hh.ru** — только если `export RECRUITER_USE_HH=1` (по умолчанию **выключено**: TG в вакансиях редко).
+### Если `contacts` пустой
 
-В ответе смотрите **`best_contact`** (лучший) и **`contacts`** (до 2 живых). Каждый контакт с `source_url` и проверкой через `t.me`.
+| Шаг | Действие |
+|-----|----------|
+| A | На **HireHi** откройте вакансию — часто @ только в браузере. Сохраните в seed (ниже). |
+| B | В посте/вакансии есть `Tg: @…` — сохраните HTML → `bash scripts/recruiter-osint.sh "Компания" --url 'file:///path/post.html'` |
+| C | Один раз допишите `data/company-seeds.json` — дальше снова одна команда. |
 
-### Если компании нет в seeds и поиск пустой
+Проверка ника: `bash scripts/verify-telegram.sh username`
 
-Добавьте запись в `data/company-seeds.json` (username + `source_url`) или один раз:
+## Что делает CLI (коротко)
 
-```bash
-bash scripts/recruiter-osint.sh "Компания" --url 'file:///path/page.html'
+1. `company-seeds.json` + кэш  
+2. DDG: **hirehi.ru**, **linkedin.com**, **t.me** (только сниппеты)  
+3. Одна страница **HireHi** `/companies/{slug}`  
+4. `verify-telegram.sh`
+
+**Отключено** (низкая отдача): hh.ru, Hirify, обход 10+ сайтов, случайные `t.me` из выдачи.
+
+## Seed (память на компанию)
+
+```json
+"my-company": {
+  "leads": [{
+    "username": "recruiter_nick",
+    "source_url": "https://hirehi.ru/...",
+    "source_note": "вакансия PM, дата"
+  }]
+}
 ```
 
-Проверка ника:
-
-```bash
-bash scripts/verify-telegram.sh username
-```
-
-Кэш: `data/recruiter-cache.json` (не коммитится; пустые результаты не кэшируются).
+Кэш: `data/recruiter-cache.json` (пустое не кэшируется). `--refresh` — перепроверить.

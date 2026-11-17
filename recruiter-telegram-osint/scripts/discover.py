@@ -22,6 +22,10 @@ DENY_SUB = (
     "math_tutoronline",
     "olga_math",
     "_bot",
+    "hirehi_official",
+    "generalsupport",
+    "jun_hi",
+    "hirify",
 )
 SKIP_FETCH_HOST = (
     "instagram.com",
@@ -187,7 +191,6 @@ def discover(
     root: Path,
     company: str,
     extra_url: str,
-    max_page_fetches: int = 12,
 ) -> list[dict]:
     pool: dict[str, dict] = {}
     seeds = load_seeds(root)
@@ -221,57 +224,36 @@ def discover(
                 sc = 90 if company_context(html, company) else 70
                 add_candidate(pool, user, score=sc, source=extra_url, reason="--url page")
 
+    # Только узкие запросы (без обхода случайных сайтов и hh/hirify)
     queries = [
-        f'"{company}" рекрутер telegram',
-        f'"{company}" HR telegram t.me',
-        f"{company} вакансия telegram @",
+        f'site:hirehi.ru "{company}" telegram',
+        f'site:linkedin.com "{company}" ("Tg" OR telegram OR @)',
+        f'site:t.me "{company}" (вакансия OR HR OR рекрут)',
     ]
-    fetch_urls: list[str] = []
-    seen_url: set[str] = set()
-
     for q in queries:
-        result_urls, ddg_html = ddg_search(q)
+        _, ddg_html = ddg_search(q)
         for user in extract_usernames(ddg_html):
-            if company_context(ddg_html, company):
-                add_candidate(
-                    pool,
-                    user,
-                    score=45,
-                    source=f"ddg:{q}",
-                    reason="snippet",
-                )
-        for url in result_urls:
-            if url in seen_url:
+            if not company_context(ddg_html, company) or not hr_context(ddg_html):
                 continue
-            seen_url.add(url)
-            if "t.me" in url or "telegram.me" in url:
-                for user in extract_usernames(url):
-                    add_candidate(
-                        pool,
-                        user,
-                        score=35,
-                        source=url,
-                        reason="ddg t.me link",
-                    )
-                continue
-            if should_skip_url(url):
-                continue
-            fetch_urls.append(url)
-
-    for url in fetch_urls[:max_page_fetches]:
-        html = curl_get(url)
-        if not html:
-            continue
-        if not company_context(html, company):
-            continue
-        base = 55 if hr_context(html) else 50
-        for user in extract_usernames(html):
             add_candidate(
                 pool,
                 user,
-                score=base + (10 if hr_context(html) else 0),
-                source=url,
-                reason="fetched page",
+                score=55,
+                source=f"ddg:{q}",
+                reason="ddg snippet",
+            )
+
+    slug = company_key(company)
+    hirehi = curl_get(f"https://hirehi.ru/companies/{slug}")
+    if hirehi and company_context(hirehi, company):
+        for user in extract_usernames(hirehi):
+            sc = 70 if hr_context(hirehi) else 60
+            add_candidate(
+                pool,
+                user,
+                score=sc,
+                source=f"https://hirehi.ru/companies/{slug}",
+                reason="hirehi company page",
             )
 
     ordered = sorted(pool.values(), key=lambda x: (-x["score"], x["username"].casefold()))
