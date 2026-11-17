@@ -43,6 +43,7 @@ HR_VACANCY_CHANNELS = (
     "hrhubvacancy",
     "hrhubvacancy300",
     "hrhubjunior",
+    "work4writers",
 )
 
 HR_HINTS = (
@@ -314,8 +315,7 @@ def scan_hr_vacancy_channels(pool: dict[str, dict], company: str) -> None:
                     )
             for url in urls:
                 if "t.me/s/" in url:
-                    if channel in url or channel in url.casefold():
-                        fetch_urls.append(url.split("&")[0])
+                    fetch_urls.append(url.split("&")[0])
         for url in dict.fromkeys(fetch_urls):
             html = curl_get(url)
             if not html or not company_context(html, company):
@@ -425,8 +425,10 @@ def discover(
         f"{company} HR telegram @",
         f"{company} рекрутер телеграм",
         f"{company} recruiting t.me",
+        f"{company} резюме telegram @",
+        f"{company} присылайте резюме telegram",
     ):
-        _, html = ddg_search(q)
+        urls, html = ddg_search(q)
         for user in extract_usernames_near(html, company, window=700):
             add_candidate(
                 pool,
@@ -436,6 +438,27 @@ def discover(
                 reason="сценарий: DDG recruiter",
                 role="",
             )
+        for url in urls:
+            if "t.me/s/" not in url:
+                continue
+            html = curl_get(url.split("&")[0])
+            if not html or not company_context(html, company):
+                continue
+            for user in extract_usernames_near(html, company, window=800):
+                if deny(user):
+                    continue
+                chunk = chunk_near_username(html, user)
+                if not chunk:
+                    continue
+                sc = hr_channel_resume_score(chunk) if hr_context(chunk) else 85
+                add_candidate(
+                    pool,
+                    user,
+                    score=sc,
+                    source=url,
+                    reason="сценарий: DDG → пост t.me/s",
+                    role="рекрутер (вакансия в TG)",
+                )
 
     # Узкий веб-поиск (без обхода 10+ сайтов)
     queries = [

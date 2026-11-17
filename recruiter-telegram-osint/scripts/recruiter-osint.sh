@@ -149,24 +149,34 @@ verified = json.loads(Path(vpath).read_text(encoding="utf-8"))
 alive = [v for v in verified if v.get("alive")]
 RECR_MARK = ("recruiter", "рекрут", " hr", "hr ", "talent", "кадр", "подбор", "hiring")
 CORP_MARK = ("идеи, тренды", "календарь", "корпоративн", "marketplace", "подписчик")
+INFO_CHAN = ("информационн", "официальн", "канал для", "обратной связи", "клиент&#33;", "kion client")
 
 def rank_contact(v, company_cf):
+    if (v.get("match_reason") or "").startswith("seed"):
+        v["score"] = int(v.get("score") or 0)
+        return v["score"]
     s = int(v.get("score") or 0)
-    if s >= 100:
-        return s
     text = f"{v.get('title', '')} {v.get('description', '')}".casefold()
     un = v["username"].casefold()
+    reason = (v.get("match_reason") or "").casefold()
     company_hit = company_cf in text or company_cf in un or any(
         p in text for p in company_cf.split() if len(p) > 3
     )
+    if "hr-канал" in reason:
+        s += 10
+    title = (v.get("title") or "").strip()
+    if title and " " in title and len(title) > 5:
+        s += 12
     if company_hit and any(m in text for m in RECR_MARK):
         s += 25
     if company_hit:
         s += 8
     if any(m in text for m in CORP_MARK) and not any(m in text for m in RECR_MARK):
         s -= 45
-    if un.endswith(("_corp", "_work", "_tg")) or "corp" in un.split("_")[-1]:
-        s -= 35
+    if any(m in text for m in INFO_CHAN) and not any(m in text for m in RECR_MARK):
+        s -= 55
+    if un.endswith(("_corp", "_work", "_tg", "client")) or "client" in un or "corp" in un.split("_")[-1]:
+        s -= 40
     v["score"] = s
     return s
 
@@ -184,7 +194,13 @@ for v in alive:
         if "recruiter" in td.casefold() or "рекрут" in td.casefold():
             v["role"] = td[:80]
 alive = [v for v in alive if v.get("score", 0) >= 70]
-alive.sort(key=lambda x: (-(x.get("score") or 0), x.get("username", "").casefold()))
+alive.sort(
+    key=lambda x: (
+        0 if (x.get("match_reason") or "").startswith("seed") else 1,
+        -(x.get("score") or 0),
+        x.get("username", "").casefold(),
+    )
+)
 alive = alive[:1]
 out = {
   "company": company,
@@ -199,7 +215,7 @@ print(json.dumps(out, ensure_ascii=False))
 PY
 
 if [[ "$(python3 -c "import json;print(len(json.load(open('$tmpdir/result.json')).get('contacts',[])))")" -eq 0 ]]; then
-  echo "Контакт не найден. В чате: «найди рекрутера <компания>» — агент добьёт сценарий; у вас: --url file://…" >&2
+  echo "Контакт не найден. HireHi / сохраните пост с @ → bash scripts/recruiter-osint.sh \"Компания\" --url 'file://…'" >&2
   [[ "$JSON_OUT" -eq 1 ]] && python3 -m json.tool <"$tmpdir/result.json"
   exit 1
 fi
