@@ -6,6 +6,14 @@ bash scripts/recruiter-osint.sh "Компания"
 
 Никакого чата. Один вызов → 3 строки (@, имя, роль) или «не найден».
 
+Уже писали первому найденному → следующий кандидат:
+
+```bash
+bash scripts/recruiter-osint.sh "Домклик" --refresh --skip @ник
+```
+
+Список запасных: `--json` → поле `alternates`.
+
 ## Сценарии в `discover.py` (порядок)
 
 1. Таблицы `network-contacts.json`

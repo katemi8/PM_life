@@ -44,6 +44,7 @@ HR_VACANCY_CHANNELS = (
     "hrhubvacancy300",
     "hrhubjunior",
     "work4writers",
+    "jobs_for_products",
 )
 
 HR_HINTS = (
@@ -88,6 +89,13 @@ FALSE_AT = frozenset(
         "hrhubjunior",
         "hrhublibrary",
         "hrhubresume",
+        "telegram",
+        "boost",
+        "premium",
+        "telegramtips",
+        "contest",
+        "spambot",
+        "botfather",
     }
 )
 
@@ -250,14 +258,29 @@ def should_skip_url(url: str) -> bool:
     return any(h in host for h in SKIP_FETCH_HOST)
 
 
+COMPANY_ALIASES: dict[str, list[str]] = {
+    "домклик": ["domclick", "domclick.ru"],
+    "domclick": ["домклик"],
+}
+
+
+def company_terms(company: str) -> list[str]:
+    c = company.casefold().strip()
+    terms = [c]
+    for key, extras in COMPANY_ALIASES.items():
+        if c == key or key in c.replace(" ", ""):
+            terms.extend(extras)
+    return list(dict.fromkeys(terms))
+
+
 def company_context(text: str, company: str) -> bool:
     t = text.casefold()
-    c = company.casefold()
-    if c in t:
-        return True
-    for part in c.split():
-        if len(part) > 3 and part in t:
+    for term in company_terms(company):
+        if term in t:
             return True
+        for part in term.split():
+            if len(part) > 3 and part in t:
+                return True
     return False
 
 
@@ -427,6 +450,8 @@ def discover(
         f"{company} recruiting t.me",
         f"{company} резюме telegram @",
         f"{company} присылайте резюме telegram",
+        f"{company} work4writers t.me/s",
+        f"{company} work4writers резюме",
     ):
         urls, html = ddg_search(q)
         for user in extract_usernames_near(html, company, window=700):
@@ -510,7 +535,7 @@ def discover(
             )
 
     ordered = sorted(pool.values(), key=lambda x: (-x["score"], x["username"].casefold()))
-    return ordered[:8]
+    return ordered[:15]
 
 
 def main() -> None:
