@@ -123,19 +123,31 @@ def network_role_score(role: str) -> int:
     return 88
 
 
-def network_company_match(company: str, contact: dict) -> bool:
-    ck = company_key(company)
-    if ck in (contact.get("company_keys") or []):
-        return True
+def network_query_keys(company: str) -> set[str]:
+    """Ключи компании для сопоставления с network-contacts — без матча по «doc» и пр."""
+    keys = {company_key(company)}
     cf = company.casefold().strip()
+    for alias_key, extras in COMPANY_ALIASES.items():
+        if company_key(alias_key) == company_key(company) or alias_key in cf:
+            keys.add(company_key(alias_key))
+            for extra in extras:
+                keys.add(company_key(extra))
+    return keys
+
+
+def network_company_match(company: str, contact: dict) -> bool:
+    query_keys = network_query_keys(company)
+    contact_keys = set(contact.get("company_keys") or [])
+    if contact_keys & query_keys:
+        return True
     comp = (contact.get("company") or "").casefold().strip()
     if not comp:
         return False
-    if comp == cf or comp in cf or cf in comp:
+    if company_key(comp) in query_keys:
         return True
-    for part in cf.split():
-        if len(part) > 2 and part in comp:
-            return True
+  # Только точное совпадение строки (без подстрок и без слов из запроса).
+    if comp == company.casefold().strip():
+        return True
     return False
 
 
