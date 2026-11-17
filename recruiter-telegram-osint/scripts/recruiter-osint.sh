@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Поиск публичных @username по названию компании — без LLM.
-# Кэш: data/recruiter-cache.json
+# Поиск живого Telegram рекрутера по компании (после ручного выбора вакансии). Без LLM.
+# Источники: seeds → --url → DDG (hirehi/linkedin/t.me) → hirehi company page.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CACHE="$ROOT/data/recruiter-cache.json"
 VERIFY="$ROOT/scripts/verify-telegram.sh"
+DISCOVER="$ROOT/scripts/discover.py"
 COMPANY=""
 EXTRA_URL=""
 REFRESH=0
-FETCH_N=0
 
 usage() {
   cat >&2 <<'EOF'
@@ -65,7 +65,7 @@ import json, sys
 from pathlib import Path
 cache = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 hit = cache.get(sys.argv[2])
-if hit is not None:
+if hit and hit.get("contacts"):
     print(json.dumps(hit, ensure_ascii=False, indent=2))
     sys.exit(0)
 sys.exit(1)
@@ -79,144 +79,79 @@ fi
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-fetch() {
-  local url="$1"
-  FETCH_N=$((FETCH_N + 1))
-  curl -sfL --max-time 20 -A "${HH_UA:-recruiter-osint/1.0}" "$url" \
-    -o "$tmpdir/fetch_${FETCH_N}.html" 2>/dev/null || true
-}
-
-HH_UA="${HH_USER_AGENT:-recruiter-osint/1.0 (hh-radar; osint@local)}"
-quoted="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$COMPANY")"
-emp_json="$(curl -sfL --max-time 20 -H "User-Agent: ${HH_UA}" \
-  "https://api.hh.ru/employers?text=${quoted}&per_page=5" 2>/dev/null || echo '{"items":[]}')"
-if ! python3 -c "import json,sys; json.loads(sys.argv[1]); exit(0)" "$emp_json" 2>/dev/null; then
-  emp_json='{"items":[]}'
-fi
-echo "$emp_json" >"$tmpdir/employers.json"
-
-# fallback: HTML-поиск работодателя (если API 403 с датацентра)
-if [[ "$(python3 -c "import json;print(len(json.load(open('$tmpdir/employers.json')).get('items',[])))")" -eq 0 ]]; then
-  fetch "https://hh.ru/search/employer?text=${quoted}"
-  python3 - "$tmpdir" >"$tmpdir/employer_pick.json" <<'PY'
-import json, re, sys
-from pathlib import Path
-root = Path(sys.argv[1])
-ids = []
-for path in root.glob("*.html"):
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    ids.extend(re.findall(r"/employer/(\d+)", text))
-ids = list(dict.fromkeys(ids))
-if ids:
-    print(json.dumps({"id": ids[0], "name": None}, ensure_ascii=False))
-else:
-    print("null")
-PY
-fi
-
-if [[ "$(python3 -c "import json;print(len(json.load(open('$tmpdir/employers.json')).get('items',[])))")" -gt 0 ]]; then
-  python3 - "$tmpdir/employers.json" "$COMPANY" >"$tmpdir/employer_pick.json" <<'PY'
-import json, sys
-from pathlib import Path
-data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-company = sys.argv[2].casefold()
-items = data.get("items") or []
-best, best_score = None, -1
-for it in items:
-    name = (it.get("name") or "").casefold()
-    score = 0
-    if name == company:
-        score = 100
-    elif company in name or name in company:
-        score = 50
-    elif any(w in name for w in company.split() if len(w) > 2):
-        score = 20
-    if score > best_score:
-        best_score, best = score, it
-if best and best_score >= 20:
-    print(json.dumps({"id": best.get("id"), "name": best.get("name")}, ensure_ascii=False))
-else:
-    print("null")
-PY
-fi
-[[ -f "$tmpdir/employer_pick.json" ]] || echo null >"$tmpdir/employer_pick.json"
-
-emp_id="$(python3 -c "
-import json
-from pathlib import Path
-d=json.loads(Path('$tmpdir/employer_pick.json').read_text())
-print('' if not d else str(d.get('id') or ''))
-")"
-
-if [[ -n "$emp_id" ]]; then
-  fetch "https://hh.ru/employer/${emp_id}"
-  fetch "https://hh.ru/search/vacancy?employer_id=${emp_id}&per_page=20"
-fi
-[[ -n "$EXTRA_URL" ]] && fetch "$EXTRA_URL"
-
-python3 - "$tmpdir" >"$tmpdir/candidates.txt" <<'PY'
-import re, sys
-from pathlib import Path
-deny = ("bot", "courses", "curator", "channel", "subscribe", "marie_")
-found = []
-for path in Path(sys.argv[1]).glob("*.html"):
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    for m in re.finditer(r"https?://t\.me/([A-Za-z][A-Za-z0-9_]{4,31})", text, re.I):
-        found.append(m.group(1))
-    for m in re.finditer(r"(?<![A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_]{4,31})", text):
-        found.append(m.group(1))
-seen, out = set(), []
-for u in found:
-    low = u.casefold()
-    if low in seen or any(d in low for d in deny):
-        continue
-    seen.add(low)
-    out.append(u)
-print("\n".join(out))
-PY
+python3 "$DISCOVER" "$ROOT" "$COMPANY" "$EXTRA_URL" >"$tmpdir/discover.json"
 
 candidates=()
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -n "$line" ]] && candidates+=("$line")
-done <"$tmpdir/candidates.txt"
+done < <(python3 - "$tmpdir/discover.json" <<'PY'
+import json, sys
+from pathlib import Path
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for c in data.get("candidates") or []:
+    print(c["username"])
+PY
+)
 
 empty_result() {
-  python3 - "$COMPANY" "$emp_id" <<'PY'
+  python3 - "$COMPANY" <<'PY'
 import json, datetime, sys
 print(json.dumps({
   "company": sys.argv[1],
   "queried_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
-  "hh_employer_id": sys.argv[2] or None,
+  "hh_employer_id": None,
   "contacts": [],
-  "hint": "Найдите пост/вакансию с @ником и запустите с --url 'https://…'",
+  "hint": "Добавьте компанию в data/company-seeds.json (username + ссылка-источник) или найдите пост с @ником.",
 }, ensure_ascii=False, indent=2))
 PY
 }
 
 if [[ ${#candidates[@]} -eq 0 ]]; then
-  echo "Подсказка: найдите страницу с @ником (LinkedIn, careers) и добавьте --url" >&2
+  echo "Нет кандидатов. Можно дописать data/company-seeds.json или --url 'file://…'" >&2
   empty_result
   exit 1
 fi
 
 "$VERIFY" "${candidates[@]}" >"$tmpdir/verified.json"
 
-python3 - "$COMPANY" "$emp_id" "$EXTRA_URL" "$tmpdir/verified.json" >"$tmpdir/result.json" <<'PY'
+python3 - "$COMPANY" "$EXTRA_URL" "$tmpdir/discover.json" "$tmpdir/verified.json" >"$tmpdir/result.json" <<'PY'
 import json, datetime, sys
 from pathlib import Path
-company, emp_id, extra, vpath = sys.argv[1:5]
+
+company, extra, disc_path, vpath = sys.argv[1:5]
+disc = json.loads(Path(disc_path).read_text(encoding="utf-8"))
+meta = {c["username"].casefold(): c for c in disc.get("candidates") or []}
 verified = json.loads(Path(vpath).read_text(encoding="utf-8"))
-contacts = [v for v in verified if v.get("alive")]
+alive = [v for v in verified if v.get("alive")]
+for v in alive:
+    m = meta.get(v["username"].casefold(), {})
+    v["source_url"] = m.get("source")
+    v["match_reason"] = m.get("reason")
+    v["score"] = m.get("score", 0)
+alive.sort(key=lambda x: (-(x.get("score") or 0), x.get("username", "").casefold()))
+top = alive[0].get("score") or 0 if alive else 0
+# не сыпем лишние TG: при уверенном seed (90+) — только один ник
+if top >= 90:
+    alive = alive[:1]
+else:
+    alive = [v for v in alive if (v.get("score") or 0) >= top - 10][:2]
 out = {
   "company": company,
   "queried_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
-  "hh_employer_id": emp_id or None,
+  "hh_employer_id": None,
   "extra_url": extra or None,
-  "contacts": contacts,
+  "best_contact": alive[0] if alive else None,
+  "contacts": alive,
   "rejected_usernames": [v for v in verified if not v.get("alive")],
 }
 print(json.dumps(out, ensure_ascii=False))
 PY
+
+if [[ "$(python3 -c "import json;print(len(json.load(open('$tmpdir/result.json')).get('contacts',[])))")" -eq 0 ]]; then
+  echo "Кандидаты были, но t.me не подтвердил — проверьте отклонённые ники в rejected_usernames" >&2
+  python3 -m json.tool <"$tmpdir/result.json"
+  exit 1
+fi
 
 python3 -m json.tool <"$tmpdir/result.json"
 
