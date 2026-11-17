@@ -23,5 +23,16 @@
         "source_note": "HR[хаб]: резюме в ЛС @yuliabolmatova"
       }
     ]
+  },
+  "flowwow": {
+    "aliases": ["Флаувау", "Fluvow", "flow wow"],
+    "leads": [
+      {
+        "username": "anastasia_flowwow",
+        "label": "Recruiter Flowwow",
+        "source_url": "https://t.me/anastasia_flowwow",
+        "source_note": "Профиль t.me; вакансии также @HR_Flowwow (Dina Novikova)"
+      }
+    ]
   }
 }
