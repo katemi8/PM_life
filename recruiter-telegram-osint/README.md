@@ -13,7 +13,7 @@ cd recruiter-telegram-osint
 bash scripts/recruiter-osint.sh "Название компании"
 ```
 
-4. Смотрите **`best_contact`** → пишете в Telegram с резюме и сопроводительным.
+4. В терминале три строки: **@ник**, **имя, должность**, **t.me/…** → пишете в Telegram. Полный JSON: `--json`.
 
 ### Если `contacts` пустой
 
