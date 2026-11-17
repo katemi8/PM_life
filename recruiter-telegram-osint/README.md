@@ -13,7 +13,7 @@ cd recruiter-telegram-osint
 bash scripts/recruiter-osint.sh "Название компании"
 ```
 
-4. В терминале три строки: **@ник**, **имя, должность**, **t.me/…** → пишете в Telegram. Полный JSON: `--json`.
+4. В терминале четыре строки: **@ник**, **имя, должность**, **тип: рекрутер | сотрудник | канал**, **t.me/…** → пишете в Telegram. Полный JSON: `--json`.
 
 ### Если `contacts` пустой
 
@@ -27,12 +27,14 @@ bash scripts/recruiter-osint.sh "Название компании"
 
 ## Что делает CLI (коротко)
 
-1. **`company-seeds.json`** (проверенные рекрутеры)  
-2. **`network-contacts.json`** (Нетворк + ProductCamp)  
-3. **HR-каналы в Telegram** (`hrhubvacancy` и др.): поиск постов с «резюме в ЛС @…» — сценарий как для **KION**  
-4. DDG: **hirehi**, **linkedin**, **t.me**  
-5. Страница **HireHi** `/companies/{slug}`  
-6. `verify-telegram.sh`
+Порядок в `discover.py` (ранжирование: **сначала рекрутер, иначе сотрудник**, каналы — в последнюю очередь):
+
+1. **`network-contacts.json`** (Нетворк + ProductCamp, строгий матч компании)  
+2. **`company-seeds.json`** (проверенные рекрутеры)  
+3. **`--url`** (сохранённый HTML поста/вакансии)  
+4. **HR-каналы** (`hrhubvacancy`, `work4writers`, …) и DDG → посты `t.me/s/`  
+5. DDG: recruiter / резюме / hirehi / linkedin  
+6. `verify-telegram.sh` + тип контакта в stdout
 
 Обновить таблицы из xlsx:
 
