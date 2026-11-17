@@ -27,10 +27,20 @@ bash scripts/recruiter-osint.sh "Название компании"
 
 ## Что делает CLI (коротко)
 
-1. `company-seeds.json` + кэш  
+1. **`company-seeds.json`** (рекрутеры) + **`network-contacts.json`** (Нетворк + ProductCamp, 898 чел.)  
 2. DDG: **hirehi.ru**, **linkedin.com**, **t.me** (только сниппеты)  
 3. Одна страница **HireHi** `/companies/{slug}`  
 4. `verify-telegram.sh`
+
+Обновить таблицы из xlsx:
+
+```bash
+python3 scripts/import_network_xlsx.py
+# или пути к своим файлам:
+python3 scripts/import_network_xlsx.py /path/network.xlsx /path/productcamp.xlsx
+```
+
+Исходники по умолчанию: `data/sources/network-career.xlsx`, `data/sources/productcamp-spring-2024.xlsx`.
 
 **Отключено** (низкая отдача): hh.ru, Hirify, обход 10+ сайтов, случайные `t.me` из выдачи.
 

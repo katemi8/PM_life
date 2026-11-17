@@ -75,7 +75,7 @@ def emit_short(hit):
     b = hit.get("best_contact") or (hit.get("contacts") or [None])[0]
     if not b:
         return False
-    name = (b.get("title") or "").strip() or "—"
+    name = (b.get("display_name") or b.get("title") or "").strip() or "—"
     role = (b.get("role") or "").strip() or "—"
     u = b["username"]
     print(f"@{u}")
@@ -153,6 +153,7 @@ for v in alive:
     v["match_reason"] = m.get("reason")
     v["score"] = m.get("score", 0)
     v["role"] = m.get("role") or ""
+    v["display_name"] = m.get("display_name") or ""
 alive.sort(key=lambda x: (-(x.get("score") or 0), x.get("username", "").casefold()))
 # Автопоиск: не показывать мусор (CSS @media и т.п.) — нужен seed/--url или score ≥ 75
 alive = [
@@ -191,7 +192,7 @@ import json, sys
 from pathlib import Path
 hit = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 b = hit.get("best_contact")
-name = (b.get("title") or "").strip() or "—"
+name = (b.get("display_name") or b.get("title") or "").strip() or "—"
 role = (b.get("role") or "").strip() or "—"
 u = b["username"]
 print(f"@{u}")

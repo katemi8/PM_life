@@ -77,8 +77,42 @@ FALSE_AT = frozenset(
 
 
 def company_key(name: str) -> str:
-    k = re.sub(r"[^a-z0-9]+", "-", name.casefold().strip())
+    k = re.sub(r"[^a-z0-9а-яё]+", "-", name.casefold().strip())
     return k.strip("-") or "unknown"
+
+
+def load_network(root: Path) -> list[dict]:
+    path = root / "data" / "network-contacts.json"
+    if not path.is_file():
+        return []
+    return json.loads(path.read_text(encoding="utf-8")).get("contacts") or []
+
+
+def network_role_score(role: str) -> int:
+    r = (role or "").casefold()
+    if any(x in r for x in ("hr", "рекрут", "talent", "кадр", "hiring")):
+        return 92
+    if any(x in r for x in ("cpo", "head of", "директор", "lead", "руковод")):
+        return 91
+    if any(x in r for x in ("product", "продакт", "проджект", "pm ", " pm")):
+        return 90
+    return 88
+
+
+def network_company_match(company: str, contact: dict) -> bool:
+    ck = company_key(company)
+    if ck in (contact.get("company_keys") or []):
+        return True
+    cf = company.casefold().strip()
+    comp = (contact.get("company") or "").casefold().strip()
+    if not comp:
+        return False
+    if comp == cf or comp in cf or cf in comp:
+        return True
+    for part in cf.split():
+        if len(part) > 2 and part in comp:
+            return True
+    return False
 
 
 def load_seeds(root: Path) -> dict:
@@ -224,6 +258,7 @@ def add_candidate(
     source: str,
     reason: str,
     role: str = "",
+    display_name: str = "",
 ) -> None:
     if deny(username):
         return
@@ -235,6 +270,7 @@ def add_candidate(
         "source": source,
         "reason": reason,
         "role": role,
+        "display_name": display_name,
     }
     if prev is None or meta["score"] > prev["score"]:
         pool[u] = meta
@@ -248,6 +284,23 @@ def discover(
     pool: dict[str, dict] = {}
     seeds = load_seeds(root)
     seed_key, seed_entry = resolve_seed_entry(seeds, company)
+
+    for contact in load_network(root):
+        if not network_company_match(company, contact):
+            continue
+        user = (contact.get("username") or "").strip()
+        if not user:
+            continue
+        role = str(contact.get("role") or "—")
+        add_candidate(
+            pool,
+            user,
+            score=network_role_score(role),
+            source=contact.get("source") or "network-contacts.json",
+            reason=contact.get("source_note") or "network",
+            role=role,
+            display_name=str(contact.get("name") or ""),
+        )
 
     if seed_entry:
         for lead in seed_entry.get("leads") or []:
@@ -328,7 +381,7 @@ def discover(
             )
 
     ordered = sorted(pool.values(), key=lambda x: (-x["score"], x["username"].casefold()))
-    return ordered
+    return ordered[:8]
 
 
 def main() -> None:
