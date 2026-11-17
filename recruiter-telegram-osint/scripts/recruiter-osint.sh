@@ -85,9 +85,11 @@ def emit_short(hit):
         return False
     name = (b.get("display_name") or b.get("title") or "").strip() or "—"
     role = (b.get("role") or "").strip() or "—"
+    kind = (b.get("contact_type") or "контакт").strip()
     u = b["username"]
     print(f"@{u}")
     print(f"{name}, {role}")
+    print(f"тип: {kind}")
     print(f"https://t.me/{u}")
     return True
 
@@ -270,6 +272,10 @@ for v in alive:
         td = f"{v.get('title','')} {v.get('description','')}".strip()
         if "recruiter" in td.casefold() or "рекрут" in td.casefold():
             v["role"] = td[:80]
+def has_person_name(v):
+    title = (v.get("display_name") or v.get("title") or "").strip()
+    return len(title) > 2 and title not in ("—", "-", "—")
+
 def looks_recruiter(v):
     blob = " ".join(
         [
@@ -282,6 +288,58 @@ def looks_recruiter(v):
     return any(
         x in blob
         for x in ("рекрут", "recruiter", " hr", "hr-", "hr/", "hiring", "вакансия", "резюме", "hr-канал")
+    )
+
+def classify_contact_type(v, company_cf):
+    reason = (v.get("match_reason") or "").casefold()
+    text = f"{v.get('title', '')} {v.get('description', '')}".casefold()
+    if is_vacancy_channel(v) or is_brand_channel(v, company_cf):
+        return "канал"
+    if (v.get("match_reason") or "").startswith("seed"):
+        return "рекрутер"
+    hr_profile = any(
+        x in text for x in ("recruiter", "рекрут", " hr ", "hiring", "кадр", "talent", "подбор")
+    )
+    hr_reason = any(
+        x in reason
+        for x in (
+            "t.me профиль hr",
+            "сверка профиля hr",
+            "hr-канал @",
+            "вакансия в tg",
+        )
+    )
+    if (hr_profile or hr_reason) and has_person_name(v):
+        if "hrhub ddg snippet" not in reason:
+            return "рекрутер"
+    if "productcamp" in reason or "нетворк" in reason or reason == "network":
+        return "сотрудник"
+    if reason.startswith("--url") and has_person_name(v):
+        return "сотрудник"
+    if has_person_name(v) and any(
+        x in (v.get("role") or "").casefold()
+        for x in ("продакт", "product", "менеджер", "директор", "lead", "cpo", "cje", "сje")
+    ):
+        return "сотрудник"
+    if reason.startswith("сценарий: ddg") and not has_person_name(v):
+        return "канал"
+    if "snippet" in reason and not has_person_name(v):
+        return "канал"
+    if has_person_name(v):
+        return "сотрудник"
+    return "канал"
+
+TYPE_RANK = {"рекрутер": 0, "сотрудник": 1, "канал": 2}
+
+def sort_contacts(contacts):
+    return sorted(
+        contacts,
+        key=lambda x: (
+            TYPE_RANK.get(x.get("contact_type"), 2),
+            0 if (x.get("match_reason") or "").startswith("seed") else 1,
+            -(x.get("score") or 0),
+            x.get("username", "").casefold(),
+        ),
     )
 
 def is_company_insider(v):
@@ -338,19 +396,25 @@ alive = [v for v in alive if not platform_account(v)]
 alive = [v for v in alive if not is_brand_channel(v, company_cf)]
 alive = [v for v in alive if not profile_employer_conflicts(v, company_cf)]
 alive = [v for v in alive if v["username"].casefold() not in skip_cf]
-alive.sort(
-    key=lambda x: (
-        0 if (x.get("match_reason") or "").startswith("seed") else 1,
-        1 if is_vacancy_channel(x) else 0,
-        0 if is_company_insider(x) else 1,
-        0 if looks_recruiter(x) else 1,
-        0 if (x.get("display_name") or x.get("title") or "").strip() else 1,
-        -(x.get("score") or 0),
-        x.get("username", "").casefold(),
-    )
-)
-picked = alive[:1]
-alternates = alive[1:6]
+for v in alive:
+    v["contact_type"] = classify_contact_type(v, company_cf)
+people = [v for v in alive if v["contact_type"] != "канал"]
+pool = people if people else alive
+recruiters = [v for v in pool if v["contact_type"] == "рекрутер"]
+insiders = [v for v in pool if v["contact_type"] == "сотрудник"]
+ordered_recruiters = sort_contacts(recruiters)
+ordered_insiders = sort_contacts(insiders)
+ordered_channels = sort_contacts([v for v in alive if v["contact_type"] == "канал"])
+if ordered_recruiters:
+    picked = ordered_recruiters[:1]
+    rest = ordered_recruiters[1:3] + ordered_insiders + ordered_channels
+elif ordered_insiders:
+    picked = ordered_insiders[:1]
+    rest = ordered_insiders[1:3] + ordered_channels
+else:
+    picked = ordered_channels[:1]
+    rest = ordered_channels[1:6]
+alternates = [v for v in rest if v != (picked[0] if picked else None)][:6]
 alive = picked
 out = {
   "company": company,
@@ -382,9 +446,11 @@ hit = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 b = hit.get("best_contact")
 name = (b.get("display_name") or b.get("title") or "").strip() or "—"
 role = (b.get("role") or "").strip() or "—"
+kind = (b.get("contact_type") or "контакт").strip()
 u = b["username"]
 print(f"@{u}")
 print(f"{name}, {role}")
+print(f"тип: {kind}")
 print(f"https://t.me/{u}")
 PY
 fi
