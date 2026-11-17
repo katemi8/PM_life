@@ -149,7 +149,7 @@ fi
 SKIP_CSV="${SKIP_USERS[*]}"
 SKIP_CSV="${SKIP_CSV// /,}"
 python3 - "$COMPANY" "$EXTRA_URL" "$tmpdir/discover.json" "$tmpdir/verified.json" "$SKIP_CSV" >"$tmpdir/result.json" <<'PY'
-import json, datetime, sys
+import json, datetime, re, sys
 from pathlib import Path
 
 company, extra, disc_path, vpath, skip_csv = sys.argv[1:6]
@@ -171,6 +171,37 @@ TG_PLATFORM = (
 PLATFORM_USER = frozenset(
     {"telegram", "boost", "premium", "telegramtips", "contest", "spambot", "botfather"}
 )
+
+def profile_employer_conflicts(v, company_cf):
+    """Сетевой JSON устарел; если в t.me явно другой работодатель — не показывать."""
+    if (v.get("match_reason") or "").startswith("seed"):
+        return False
+    text = f"{v.get('title', '')} {v.get('description', '')}".casefold()
+    if len(re.sub(r"\s+", " ", text).strip()) < 15:
+        return False
+    target = [company_cf, *company_cf.split()]
+    if "домклик" in company_cf or company_cf == "domclick":
+        target.extend(["domclick", "домклик", "сбер", "sber"])
+    if any(t and t in text for t in dict.fromkeys(target)):
+        return False
+    other_employers = (
+        "ozon",
+        "wildberries",
+        "яндекс",
+        "yandex",
+        "avito",
+        "tinkoff",
+        "тинькофф",
+        "т-банк",
+        "kaspersky",
+        "lamoda",
+        "vk team",
+        "вконтакте",
+        "kion",
+        "x5 digital",
+        "сбермаркет",
+    )
+    return any(m in text for m in other_employers)
 
 def rank_contact(v, company_cf):
     if (v.get("match_reason") or "").startswith("seed"):
@@ -275,6 +306,7 @@ def platform_account(v):
 
 alive = [v for v in alive if v.get("score", 0) >= 70]
 alive = [v for v in alive if not platform_account(v)]
+alive = [v for v in alive if not profile_employer_conflicts(v, company_cf)]
 alive = [v for v in alive if v["username"].casefold() not in skip_cf]
 alive.sort(
     key=lambda x: (
