@@ -138,8 +138,11 @@ fi
 
 "$VERIFY" "${candidates[@]}" >"$tmpdir/verified.json"
 
-SKIP_CSV="${SKIP_USERS[*]}"
-SKIP_CSV="${SKIP_CSV// /,}"
+SKIP_CSV=""
+if ((${#SKIP_USERS[@]} > 0)); then
+  SKIP_CSV=$(printf '%s,' "${SKIP_USERS[@]}")
+  SKIP_CSV="${SKIP_CSV%,}"
+fi
 python3 - "$COMPANY" "$EXTRA_URL" "$tmpdir/discover.json" "$tmpdir/verified.json" "$SKIP_CSV" >"$tmpdir/result.json" <<'PY'
 import json, datetime, re, sys
 from pathlib import Path
