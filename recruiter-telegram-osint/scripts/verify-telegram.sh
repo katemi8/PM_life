@@ -45,11 +45,15 @@ def check(username: str) -> dict:
     alive = bool(title or has_photo)
     if description and not description.startswith("You can contact @"):
         alive = True
+    is_channel = "tgme_channel_info" in html or "tgme_page_extra" in html
+    is_bot = username.casefold().endswith("bot") or "bot" in title.casefold()
     return {
         "username": username,
         "alive": alive,
         "title": title,
         "description": description,
+        "is_channel": is_channel,
+        "is_bot": is_bot,
     }
 
 users = [normalize(a) for a in sys.argv[1:]]
