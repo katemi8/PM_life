@@ -50,6 +50,8 @@ python3 scripts/import_network_xlsx.py /path/network.xlsx /path/productcamp.xlsx
 
 ## Seed (память на компанию)
 
+Добавляйте в seed только после **ручной** проверки профиля (био + медиа), не по сниппету t.me/поиска. Подтверждённый скам блокируется в `profile_signals.SCAM_USERNAMES`.
+
 ```json
 "my-company": {
   "leads": [{

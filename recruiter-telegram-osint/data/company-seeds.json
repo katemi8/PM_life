@@ -9,14 +9,7 @@
       "стоун",
       "девелопер stone"
     ],
-    "leads": [
-      {
-        "username": "hr_departamentc",
-        "label": "HR / отдел подбора",
-        "source_url": "https://stone.ru/contacts",
-        "source_note": "Отдел подбора hr@stone.ru; TG @hr_departamentc (Stone Group)"
-      }
-    ]
+    "leads": []
   },
   "tutoronline": {
     "aliases": [

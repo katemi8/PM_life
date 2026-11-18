@@ -151,6 +151,10 @@ def finalize_score(v: dict, profile, company_cf: str) -> None:
     reason = v.get("match_reason") or ""
     prior = source_prior(reason, int(v.get("score") or 0))
     if reason.startswith("seed"):
+        if is_spam_username(v["username"]):
+            v["score"] = -100
+            v["signal_notes"] = ["seed_blocked_scam"]
+            return
         v["score"] = prior
         v["signal_notes"] = ["seed_prior"]
         return

@@ -85,5 +85,17 @@ class StoneFalsePositives(unittest.TestCase):
         self.assertIn("spam_username", row["reject_reason"])
 
 
+    def test_hr_departamentc_scam_even_if_seed_reason(self):
+        disc, verified = _case(
+            "hr_departamentc",
+            "Stone Group",
+            "Присылайте резюме",
+            "seed (fake)",
+            100,
+        )
+        out = rank_and_pick("stone", "", disc, verified, set())
+        self.assertIsNone(out["best_contact"])
+
+
 if __name__ == "__main__":
     unittest.main()

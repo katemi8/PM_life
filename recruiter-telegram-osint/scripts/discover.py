@@ -48,6 +48,12 @@ HR_VACANCY_CHANNELS = (
 )
 
 # Источники для сканирования постов; как @контакт — спам, не выдаём (work4writers и др.).
+SCAM_USERNAMES = frozenset(
+    {
+        "hr_departamentc",
+    }
+)
+
 SPAM_AGGREGATOR_USERNAMES = frozenset(
     {
         "work4writers",
@@ -268,7 +274,7 @@ def deny(username: str) -> bool:
     low = username.casefold()
     if low in FALSE_AT:
         return True
-    if low in SPAM_AGGREGATOR_USERNAMES:
+    if low in SCAM_USERNAMES or low in SPAM_AGGREGATOR_USERNAMES:
         return True
     return any(d in low for d in DENY_SUB)
 
