@@ -34,7 +34,7 @@ bash scripts/recruiter-osint.sh "Название компании"
 3. **`--url`** (сохранённый HTML поста/вакансии)  
 4. **HR-каналы** (`hrhubvacancy`, `work4writers`, …) и DDG → посты `t.me/s/`  
 5. DDG: recruiter / резюме / hirehi / linkedin  
-6. `verify-telegram.sh` + тип контакта в stdout
+6. `verify-telegram.sh` (био t.me) → `rank_contacts.py` (prior + био, без бесконечных deny) → stdout
 
 Обновить таблицы из xlsx:
 

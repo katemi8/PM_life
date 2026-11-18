@@ -47,6 +47,22 @@ HR_VACANCY_CHANNELS = (
     "jobs_for_products",
 )
 
+# Источники для сканирования постов; как @контакт — спам, не выдаём (work4writers и др.).
+SPAM_AGGREGATOR_USERNAMES = frozenset(
+    {
+        "work4writers",
+        "writeforwork",
+        "hrhubvacancy",
+        "hrhubvacancy300",
+        "hrhubjunior",
+        "hrhublibrary",
+        "hrhubresume",
+        "jobs_for_products",
+        "forproducts",
+        "essaywork",
+    }
+)
+
 HR_HINTS = (
     "рекрут",
     "recruit",
@@ -252,6 +268,8 @@ def deny(username: str) -> bool:
     low = username.casefold()
     if low in FALSE_AT:
         return True
+    if low in SPAM_AGGREGATOR_USERNAMES:
+        return True
     return any(d in low for d in DENY_SUB)
 
 
@@ -359,7 +377,10 @@ def probe_public_hr_profiles(pool: dict[str, dict], company: str) -> None:
 
 def scan_ddg_tme_recruiter_profiles(pool: dict[str, dict], company: str, ddg_html: str) -> None:
     """Из выдачи DDG — живые @, если в профиле t.me совпадает компания и HR."""
+    checked = 0
     for user in extract_usernames(ddg_html):
+        if checked >= 3:
+            break
         if deny(user):
             continue
         low = user.casefold()
@@ -376,11 +397,12 @@ def scan_ddg_tme_recruiter_profiles(pool: dict[str, dict], company: str, ddg_htm
         add_candidate(
             pool,
             user,
-            score=95,
+            score=55,
             source=f"https://t.me/{user}",
             reason="сценарий: DDG → сверка профиля HR",
             role="рекрутер",
         )
+        checked += 1
 
 
 def scan_hr_vacancy_channels(pool: dict[str, dict], company: str) -> None:
@@ -396,11 +418,13 @@ def scan_hr_vacancy_channels(pool: dict[str, dict], company: str) -> None:
         for q in queries:
             urls, ddg_html = ddg_search(q)
             for user in extract_usernames_near(ddg_html, company, window=600):
+                if user.casefold() == channel.casefold():
+                    continue
                 if hr_context(ddg_html):
                     add_candidate(
                         pool,
                         user,
-                        score=94,
+                        score=35,
                         source=f"ddg:{q}",
                         reason="hrhub ddg snippet",
                         role="рекрутер (HR-канал)",
@@ -414,6 +438,8 @@ def scan_hr_vacancy_channels(pool: dict[str, dict], company: str) -> None:
                 continue
             for user in extract_usernames_near(html, company, window=700):
                 if deny(user):
+                    continue
+                if user.casefold() == channel.casefold():
                     continue
                 chunk = chunk_near_username(html, user)
                 if not chunk or not hr_context(chunk):
@@ -532,7 +558,9 @@ def discover(
         if "telegram рекрутер" in q or "telegram рекрутер" in q.casefold():
             scan_ddg_tme_recruiter_profiles(pool, company, html)
         for user in extract_usernames_near(html, company, window=700):
-            sc = 88 if user.casefold().endswith("_hr") else 82
+            if deny(user):
+                continue
+            sc = 50 if user.casefold().endswith("_hr") else 35
             add_candidate(
                 pool,
                 user,
@@ -551,7 +579,7 @@ def discover(
             add_candidate(
                 pool,
                 user,
-                score=89,
+                score=50,
                 source=f"ddg:{q}",
                 reason="сценарий: DDG _hr",
                 role="",
