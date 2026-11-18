@@ -22,7 +22,7 @@ Usage:
   recruiter-osint.sh "Название" --json   # полный JSON
   recruiter-osint.sh "Название" --skip @ник   # следующий кандидат (уже писали первому)
 
-По умолчанию: 3 строки — @ник, имя, должность, ссылка t.me
+По умолчанию: список контактов (★ — рекомендуемый), тип и источник; полный JSON: --json
 Кэш: data/recruiter-cache.json
 EOF
 }
@@ -75,39 +75,29 @@ mkdir -p "$ROOT/data"
 cache_key="$(python3 -c "import re,sys; k=re.sub(r'[^a-z0-9]+','-',sys.argv[1].casefold().strip()); print(k.strip('-') or 'unknown')" "$COMPANY")"
 
 if [[ "$REFRESH" -eq 0 && ${#SKIP_USERS[@]} -eq 0 ]]; then
-  if python3 - "$CACHE" "$cache_key" "$JSON_OUT" <<'PY'
+  cache_hit_file="$(mktemp)"
+  if python3 - "$CACHE" "$cache_key" "$cache_hit_file" <<'PY'
 import json, sys
 from pathlib import Path
 
-def emit_short(hit):
-    b = hit.get("best_contact") or (hit.get("contacts") or [None])[0]
-    if not b:
-        return False
-    name = (b.get("display_name") or b.get("title") or "").strip() or "—"
-    role = (b.get("role") or "").strip() or "—"
-    kind = (b.get("contact_type") or "контакт").strip()
-    u = b["username"]
-    print(f"@{u}")
-    print(f"{name}, {role}")
-    print(f"тип: {kind}")
-    print(f"https://t.me/{u}")
-    return True
-
 cache = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 hit = cache.get(sys.argv[2])
-json_out = sys.argv[3] == "1"
-if hit and hit.get("contacts"):
-    if json_out:
-        print(json.dumps(hit, ensure_ascii=False, indent=2))
-    else:
-        emit_short(hit)
+if hit and (hit.get("best_contact") or hit.get("contacts")):
+    Path(sys.argv[3]).write_text(json.dumps(hit, ensure_ascii=False), encoding="utf-8")
     sys.exit(0)
 sys.exit(1)
 PY
   then
+    if [[ "$JSON_OUT" -eq 1 ]]; then
+      python3 -m json.tool <"$cache_hit_file"
+    else
+      python3 "$ROOT/scripts/emit_contacts.py" "$cache_hit_file"
+    fi
+    rm -f "$cache_hit_file"
     echo "(из кэша; --refresh чтобы обновить)" >&2
     exit 0
   fi
+  rm -f "$cache_hit_file"
 fi
 
 tmpdir="$(mktemp -d)"
@@ -415,15 +405,16 @@ else:
     picked = ordered_channels[:1]
     rest = ordered_channels[1:6]
 alternates = [v for v in rest if v != (picked[0] if picked else None)][:6]
-alive = picked
+found = (picked + alternates) if picked else []
+best = found[0] if found else None
 out = {
   "company": company,
   "queried_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
   "hh_employer_id": None,
   "extra_url": extra or None,
-  "best_contact": alive[0] if alive else None,
-  "contacts": alive,
-  "alternates": alternates,
+  "best_contact": best,
+  "contacts": found,
+  "alternates": found[1:],
   "skipped_usernames": sorted(skip_cf),
   "rejected_usernames": [v for v in verified if not v.get("alive")],
 }
@@ -439,20 +430,7 @@ fi
 if [[ "$JSON_OUT" -eq 1 ]]; then
   python3 -m json.tool <"$tmpdir/result.json"
 else
-  python3 - "$tmpdir/result.json" <<'PY'
-import json, sys
-from pathlib import Path
-hit = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-b = hit.get("best_contact")
-name = (b.get("display_name") or b.get("title") or "").strip() or "—"
-role = (b.get("role") or "").strip() or "—"
-kind = (b.get("contact_type") or "контакт").strip()
-u = b["username"]
-print(f"@{u}")
-print(f"{name}, {role}")
-print(f"тип: {kind}")
-print(f"https://t.me/{u}")
-PY
+  python3 "$ROOT/scripts/emit_contacts.py" "$tmpdir/result.json"
 fi
 
 python3 - "$CACHE" "$cache_key" "$tmpdir/result.json" <<'PY'
