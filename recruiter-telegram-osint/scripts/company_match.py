@@ -32,6 +32,7 @@ COMPANY_ALIASES: dict[str, list[str]] = {
     "domclick": ["домклик"],
     "аэрофлот": ["aeroflot", "aflt", "афлт", "aflt-systems"],
     "aeroflot": ["аэрофлот", "aflt"],
+    "stone": ["stone group", "stone.ru", "ао стоунхедж", "стоун", "stone недвижимость"],
 }
 
 
