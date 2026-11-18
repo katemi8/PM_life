@@ -4,6 +4,13 @@ from __future__ import annotations
 import re
 
 # Агрегаторы / спам — редкий жёсткий список (источники сканирования, не контакты).
+# Подтверждённый скам / фишинг под бренд (не сниппет DDG).
+SCAM_USERNAMES = frozenset(
+    {
+        "hr_departamentc",
+    }
+)
+
 SPAM_USERNAMES = frozenset(
     {
         "work4writers",
@@ -65,6 +72,18 @@ SPAM_BIO = (
     "напишем",
 )
 
+SCAM_BIO = (
+    "1000$",
+    "1000 $",
+    "$1000",
+    "1 000 $",
+    "1000 usd",
+    "заработ",
+    "без опыта",
+    "лёгк",
+    "легк",
+)
+
 TG_PLATFORM = (
     "official telegram on telegram",
     "much recursion",
@@ -113,7 +132,13 @@ def detect_channel(v: dict) -> bool:
     return False
 
 
+def is_scam_username(username: str) -> bool:
+    return username.casefold() in SCAM_USERNAMES
+
+
 def is_spam_username(username: str) -> bool:
+    if is_scam_username(username):
+        return True
     return username.casefold() in SPAM_USERNAMES
 
 
@@ -134,6 +159,14 @@ def bio_adjustments(v: dict, *, tier_value: int, ambiguous: bool) -> tuple[int, 
     un = v["username"].casefold()
     notes: list[str] = []
     delta = 0
+
+    if is_scam_username(v["username"]):
+        notes.append("confirmed_scam")
+        return -150, notes
+
+    if any(x in blob for x in SCAM_BIO):
+        delta -= 90
+        notes.append("scam_bio_pattern")
 
     if is_spam_username(v["username"]):
         notes.append("spam_aggregator")
