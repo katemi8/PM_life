@@ -72,7 +72,7 @@ done
 mkdir -p "$ROOT/data"
 [[ -f "$CACHE" ]] || echo '{}' >"$CACHE"
 
-cache_key="$(python3 -c "import re,sys; k=re.sub(r'[^a-z0-9]+','-',sys.argv[1].casefold().strip()); print(k.strip('-') or 'unknown')" "$COMPANY")"
+cache_key="$(python3 -c "import sys; sys.path.insert(0, sys.argv[2]); from discover import company_key; print(company_key(sys.argv[1]))" "$COMPANY" "$ROOT/scripts")"
 
 if [[ "$REFRESH" -eq 0 && ${#SKIP_USERS[@]} -eq 0 ]]; then
   cache_hit_file="$(mktemp)"

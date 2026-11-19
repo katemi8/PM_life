@@ -243,11 +243,29 @@ def extract_usernames(text: str) -> list[str]:
     return found
 
 
+def _company_in_chunk(chunk: str, company: str) -> bool:
+    """Короткие имена (ЛСР) — только целое слово, не подстрока."""
+    for term in company_terms(company):
+        if not term:
+            continue
+        if len(term) <= 4:
+            if re.search(
+                rf"(?<![a-zа-яё0-9]){re.escape(term)}(?![a-zа-яё0-9])",
+                chunk,
+            ):
+                return True
+        elif term in chunk:
+            return True
+        for part in term.split():
+            if len(part) > 3 and part in chunk:
+                return True
+    return False
+
+
 def extract_usernames_near(text: str, company: str, window: int = 400) -> list[str]:
     """@ и t.me только рядом с названием компании (не CSS со всей страницы)."""
     t = text
     low = text.casefold()
-    c = company.casefold()
     found: list[str] = []
     for m in re.finditer(rf"(?<![A-Za-z0-9_])@({USER_RE})", t):
         user = m.group(1)
@@ -256,7 +274,7 @@ def extract_usernames_near(text: str, company: str, window: int = 400) -> list[s
         start = max(0, m.start() - window)
         end = min(len(t), m.end() + window)
         chunk = low[start:end]
-        if c in chunk or any(p in chunk for p in c.split() if len(p) > 2):
+        if _company_in_chunk(chunk, company):
             found.append(user)
     for m in re.finditer(rf"https?://t\.me/({USER_RE})", t, re.I):
         user = m.group(1)
@@ -265,7 +283,7 @@ def extract_usernames_near(text: str, company: str, window: int = 400) -> list[s
         start = max(0, m.start() - window)
         end = min(len(t), m.end() + window)
         chunk = low[start:end]
-        if c in chunk or any(p in chunk for p in c.split() if len(p) > 2):
+        if _company_in_chunk(chunk, company):
             found.append(user)
     return found
 
@@ -300,6 +318,8 @@ COMPANY_ALIASES: dict[str, list[str]] = {
     "аэрофлот": ["aeroflot", "aflt", "афлт", "aflt-systems"],
     "aeroflot": ["аэрофлот", "aflt"],
     "stone": ["stone group", "stone.ru", "стоун", "stone недвижимость"],
+    "лср": ["lsr", "lsr group", "лср-групп", "лср групп", "lsr.ru"],
+    "lsr": ["лср", "лср-групп", "lsr group"],
 }
 
 
@@ -313,14 +333,7 @@ def company_terms(company: str) -> list[str]:
 
 
 def company_context(text: str, company: str) -> bool:
-    t = text.casefold()
-    for term in company_terms(company):
-        if term in t:
-            return True
-        for part in term.split():
-            if len(part) > 3 and part in t:
-                return True
-    return False
+    return _company_in_chunk(text.casefold(), company)
 
 
 def hr_context(text: str) -> bool:
@@ -471,6 +484,7 @@ def add_candidate(
     reason: str,
     role: str = "",
     display_name: str = "",
+    employer_company: str = "",
 ) -> None:
     if deny(username):
         return
@@ -483,6 +497,7 @@ def add_candidate(
         "reason": reason,
         "role": role,
         "display_name": display_name,
+        "employer_company": employer_company,
     }
     if prev is None or meta["score"] > prev["score"]:
         pool[u] = meta
@@ -512,6 +527,7 @@ def discover(
             reason=contact.get("source_note") or "network",
             role=role,
             display_name=str(contact.get("name") or ""),
+            employer_company=str(contact.get("company") or ""),
         )
 
     if seed_entry:
