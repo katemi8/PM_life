@@ -85,6 +85,32 @@ class StoneFalsePositives(unittest.TestCase):
         self.assertIn("spam_username", row["reject_reason"])
 
 
+    def test_lsr_rejects_samokat_bio(self):
+        disc = {
+            "candidates": [
+                {
+                    "username": "ivan_hr_samokat",
+                    "score": 50,
+                    "source": "ddg:test",
+                    "reason": "сценарий: DDG recruiter",
+                    "role": "",
+                    "display_name": "",
+                }
+            ]
+        }
+        verified = [
+            {
+                "username": "ivan_hr_samokat",
+                "alive": True,
+                "title": "Иван",
+                "description": "HR BP в Самокате, подбор курьеров",
+                "is_channel": False,
+                "is_bot": False,
+            }
+        ]
+        out = rank_and_pick("ЛСР", "", disc, verified, set())
+        self.assertIsNone(out["best_contact"])
+
     def test_hr_departamentc_scam_even_if_seed_reason(self):
         disc, verified = _case(
             "hr_departamentc",

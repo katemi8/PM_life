@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 
+from company_match import MatchTier, build_company_profile, company_terms, match_company
+
 # Агрегаторы / спам — редкий жёсткий список (источники сканирования, не контакты).
 # Подтверждённый скам / фишинг под бренд (не сниппет DDG).
 SCAM_USERNAMES = frozenset(
@@ -151,6 +153,35 @@ def is_platform_account(v: dict) -> bool:
 
 def hr_intent(blob: str) -> bool:
     return any(h in blob for h in HR_TERMS)
+
+
+# Сильный сигнал другого работодателя в био (не раздуваем deny-ники).
+BIO_EMPLOYER_MARKERS: tuple[tuple[str, ...], ...] = (
+    ("самокат", "samokat", "samokat.tech"),
+    ("ozon", "озон"),
+    ("wildberries", "вайлдберриз"),
+    ("яндекс", "yandex"),
+    ("тинькофф", "tinkoff", "т-банк", "tinkoff"),
+    ("avito", "авито"),
+    ("сбер", "sber", "сбермаркет"),
+    ("kaspersky", "касперск"),
+    ("lamoda", "ламода"),
+    ("kion", "кион"),
+)
+
+
+def bio_claims_other_employer(blob: str, company: str) -> bool:
+    profile = build_company_profile(company)
+    if int(match_company(blob, "", profile)) >= int(MatchTier.TOKEN):
+        return False
+    qt = " ".join(company_terms(company))
+    for group in BIO_EMPLOYER_MARKERS:
+        if not any(m in blob for m in group):
+            continue
+        if any(m in qt for m in group):
+            continue
+        return True
+    return False
 
 
 def bio_adjustments(v: dict, *, tier_value: int, ambiguous: bool) -> tuple[int, list[str]]:

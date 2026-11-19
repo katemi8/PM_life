@@ -13,9 +13,11 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from company_match import MatchTier, build_company_profile, match_company  # noqa: E402
+from discover import company_key, network_company_match
 from profile_signals import (
     bio_adjustments,
     bio_blob,
+    bio_claims_other_employer,
     detect_channel,
     has_person_title,
     hr_intent,
@@ -202,6 +204,7 @@ def rank_and_pick(
         v["score"] = m.get("score", 0)
         v["role"] = m.get("role") or ""
         v["display_name"] = m.get("display_name") or ""
+        v["employer_company"] = m.get("employer_company") or ""
         finalize_score(v, profile, company_cf)
         if not (v.get("role") or "").strip():
             td = f"{v.get('title', '')} {v.get('description', '')}".strip()
@@ -223,6 +226,11 @@ def rank_and_pick(
             reasons.append("brand_channel")
         if profile_employer_conflicts(v, company_cf):
             reasons.append("employer_conflict")
+        if bio_claims_other_employer(bio_blob(v), company):
+            reasons.append("bio_other_employer")
+        emp = (v.get("employer_company") or "").strip()
+        if emp and not network_company_match(company, {"company": emp, "company_keys": [company_key(emp)]}):
+            reasons.append("network_company_mismatch")
         if v["username"].casefold() in skip_cf:
             reasons.append("skipped")
         if reasons:
